@@ -1,3 +1,9 @@
+# local files
+.DS_Store
+reports/
+checkout/
+*.csv
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
