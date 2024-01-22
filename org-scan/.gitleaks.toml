@@ -1,0 +1,23 @@
+title = "Custom gitleaks config"
+
+# extend from the default gitleaks toml
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Exclude certain files and paths"
+# The 'files' list contains regex patterns of file names to exclude from the scan
+# In this case, files ending with 'api-reference' and any file starting with 'unit_tests' will be excluded
+files = [
+  '''api-reference.html$''',
+  '''^unit_tests.*$''',
+]
+
+# The 'paths' list contains regex patterns of paths to exclude from the scan
+# In this case, 'redoc', 'docs', 'test', and 'tests' directories will be excluded
+paths = [
+  '''redoc''',  
+  '''docs''',
+  '''test''',
+  '''tests'''
+]

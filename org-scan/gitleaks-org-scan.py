@@ -46,15 +46,20 @@ def concatenate_csv_files():
         except pd.errors.EmptyDataError:
             print(f"Error: Empty CSV file: {csv_file}")
 
+    concatenated_df = pd.DataFrame()
+
     # Concatenate all the DataFrames in the list
-    if not DRY_RUN:
+    if df_list and not DRY_RUN:
         concatenated_df = pd.concat(df_list, ignore_index=True)
 
-    # Write the concatenated DataFrame to a new CSV file
-    print(f"Writing concatenated CSV file to {REPORTS_DIR}/report_concat.csv...")
-    if not DRY_RUN:
-        concatenated_df.to_csv('report_concat.csv', index=False)
-
+    # Check if concatenated_df is empty
+    if concatenated_df.empty:
+        print("WARNING: No results to write to report_concat.csv")
+    else:
+        # Write the concatenated DataFrame to a new CSV file
+        print(f"Writing concatenated CSV file to {REPORTS_DIR}/report_concat.csv...")
+        if not DRY_RUN:
+            concatenated_df.to_csv('report_concat.csv', index=False)
 
 # make ./reports directory if it doesn't exist
 if not os.path.exists(REPORTS_DIR):
@@ -91,17 +96,19 @@ else:
             if not DRY_RUN:
                 subprocess.run(["git", "clone", repo["clone_url"], f"{repo_name}"], check=True)
 
-        # Run gitleaks in each repository
+        # Run gitleaks in each repository. See https://github.com/gitleaks/gitleaks?tab=readme-ov-file#usage
         print(f"Running gitleaks on {repo_name}...")
         command = [
             "gitleaks",
             "detect",
-            "-f",
+            "-f", # --report-format string
             "csv",
-            "-r",
+            "-r", # --report-path string
             f"./reports/gitleaks_findings_{repo_bare_name}.csv",
             "--source",
             f"{repo_name}",
+            "-c", # --config string
+            "./.gitleaks.toml", 
             "-v"
         ]
         print("gitleaks command:", " ".join(command))
