@@ -19,5 +19,6 @@ paths = [
   '''redoc''',  
   '''docs''',
   '''test''',
-  '''tests'''
+  '''tests''',
+  '''cypress/integration'''
 ]

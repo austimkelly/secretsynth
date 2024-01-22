@@ -32,17 +32,26 @@ def concatenate_csv_files():
 
     # Loop through the list of CSV files
     for csv_file in csv_files:
-        if DRY_RUN:
-            print(f"Reading {csv_file}...")
-
         # Check if the CSV file is empty
         if os.stat(csv_file).st_size == 0:
             print(f"Skipping empty file: {csv_file}")
             continue
 
+        # Extract the base name of the file
+        base_name = os.path.basename(csv_file)
+        # Extract the repository name from the base name
+        repo_name = base_name.replace('gitleaks_findings_', '').replace('.csv', '')
+        # Read the CSV file into a DataFrame
+        df = pd.read_csv(csv_file)
+        # Prepend a new column with the repository name
+        df.insert(0, 'Repository', repo_name)
+
+        if DRY_RUN:
+            print(f"Reading {csv_file}...")
+
         # Read each non-empty CSV file into a DataFrame and append it to the list
         try:
-            df_list.append(pd.read_csv(csv_file))
+            df_list.append(df)
         except pd.errors.EmptyDataError:
             print(f"Error: Empty CSV file: {csv_file}")
 
