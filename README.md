@@ -53,6 +53,8 @@ After the script has finished running, you can find the consolidated report in t
 
 Please note that the script must be run with sufficient permissions to access the target repositories.
 
+![report](./doc/secrets_report.png)
+
 # Gitleaks as a Github Action
 
 This repository also contains a Github Action that can be used to scan a repository for secrets using Gitleaks. The action is located in the [.github/actions/gitleaks](.github/workflows/gitleaks.yml) directory. 
