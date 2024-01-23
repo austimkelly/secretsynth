@@ -55,6 +55,25 @@ Please note that the script must be run with sufficient permissions to access th
 
 ![report](./doc/secrets_report.png)
 
+## org-scan call sequence
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Script as gitleaks-org-scan.py
+    participant GitHub
+    participant FileSystem as Local File System
+    User->>Script: Run script
+    Script->>GitHub: Request list of repositories
+    GitHub-->>Script: Return list of repositories
+    loop for each repository
+        Script->>GitHub: Clone repository
+        Script->>FileSystem: Save repository to local file system
+        Script->>Script: Run gitleaks on cloned repository
+        Script->>FileSystem: Save gitleaks report to local file system
+    end
+```
+
 # Gitleaks as a Github Action
 
 This repository also contains a Github Action that can be used to scan a repository for secrets using Gitleaks. The action is located in the [.github/actions/gitleaks](.github/workflows/gitleaks.yml) directory. 
