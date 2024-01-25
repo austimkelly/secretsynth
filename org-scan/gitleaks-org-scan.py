@@ -8,7 +8,7 @@ import glob
 import pandas as pd
 from urllib.parse import urlparse
 
-ORG_TYPE = "users"  # This can be either "users" or "orgs"
+ORG_TYPE = "orgs"  # This can be either "users" or "orgs"
 TARGET = "austimkelly"  # This can be a username or an org name
 TOKEN = os.getenv('GITHUB_ACCESS_TOKEN')
 CHECKOUT_DIR = "./checkout"  # This is the directory where the repositories will be cloned
@@ -70,6 +70,20 @@ def concatenate_csv_files():
         if not DRY_RUN:
             concatenated_df.to_csv('report_concat.csv', index=False)
 
+def fetch_repos(account_type, account, headers, page=1, per_page=100):
+    repos = []
+    while True:
+        repos_url = f'https://api.github.com/{account_type}/{account}/repos?page={page}&per_page={per_page}'
+        if DRY_RUN:
+            print(f"Calling {repos_url}...")
+        response = requests.get(repos_url, headers=headers)
+        data = response.json()
+        repos.extend(data)
+        if len(data) < per_page:
+            break
+        page += 1
+    return repos
+
 # make ./reports directory if it doesn't exist
 if not os.path.exists(REPORTS_DIR):
     os.makedirs(REPORTS_DIR)
@@ -84,8 +98,8 @@ if response.status_code != 200:
     print(response.text)
     exit(1)
 
-repos = response.json()
-#print(repos)
+repos = fetch_repos(ORG_TYPE, TARGET, headers)
+
 
 # Check if the response contains an error message
 if "message" in repos and repos["message"] == "Not Found":
