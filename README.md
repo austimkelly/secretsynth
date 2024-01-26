@@ -11,6 +11,14 @@ One of the utilities included in this package is `gitleaks-org-scan.py`. This sc
 
 This is a useful exercise before enabling new secrets scanning tools as scale across a large number of repositories. You want to minimize false positives as much as possible before enabling a new tool.
 
+## Pre-requisites
+
+* Python 3.6+
+* `git` installed and in your PATH
+* A Github account with sufficient permissions to access the target repositories
+* A Github access token with sufficient permissions get a listing of repositories from the Github REST API
+* `gitleaks` installed and in your PATH
+
 ## Installation
 
 1. Clone this repository:
@@ -25,7 +33,20 @@ This is a useful exercise before enabling new secrets scanning tools as scale ac
 
 ## Usage
 
-NOTE: For a clean run, delete the `./reports` and `./checkout` directories as well as the `report_concat.csv` file before running the script.
+Here's the command-line help:
+
+```
+usage: gitleaks-org-scan.py [-h] [--clean] [--dry-run] [--org-type {users,orgs}] [--owners OWNERS]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --clean               delete the directories ./checkouts and ./reports. When --clean is present all
+                        other commands are ignored.
+  --dry-run             run the script in dry run mode, don't execute any commands
+  --org-type {users,orgs}
+                        set the organization type
+  --owners OWNERS       comma-delimited list of owners
+```
 
 1. Set your GitHub access token as an environment variable:
 
@@ -33,25 +54,29 @@ NOTE: For a clean run, delete the `./reports` and `./checkout` directories as we
 
 See [Managing your personal access tokens](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens) for more information. You will only need the ability to list repositories so the script will know what to checkout via `git checkout`
 
-2. Modify script variables:
-
-* `DRY_RUN` - True to only print commands to the console, no execution.
-* `ORG_TYPE` - Set to `user` or `org` depending on the type of target.
-* `TARGET` - The name of the GitHub user or organization to scan.
-
-3. Review [.gitleaks.toml](./org-scan/.gitleaks.toml) for path and file exclusions. Modify as necessary.
+2. Review [.gitleaks.toml](./org-scan/.gitleaks.toml) for path and file exclusions. Modify as necessary.
 
 Gitleaks can generate a lot of false positives out of the box. So review results carefully and add exclusions as necessary to minimize false positives.
 
-4. Run the script from the `org-scan` directory:
+3. Run the script from the `org-scan` directory:
 
-`python gitleaks-org-scan.py`
+Example: Running on a personal owner account:
+
+`python3 gitleaks-org-scan.py --org-type users --owners austimkelly`
+
+Example: Running on multiple organizations:
+
+`python3 gitleaks-org-scan.py --org-type orgs --owners org1,org2,org3`
+
+Example: Cleaning up source and scanning artifacts:
+
+`python3 gitleaks-org-scan.py --clean`
 
 ## Reports
 
 After the script has finished running, you can find the consolidated report in the `report_concat.csv` file in the working directory. Individual reports for each repository are located in the `./reports` directory.
 
-Please note that the script must be run with sufficient permissions to access the target repositories.
+Here's an example of the output:
 
 ![report](./doc/secrets_report.png)
 

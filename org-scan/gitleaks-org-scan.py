@@ -12,11 +12,21 @@ import shutil
 
 # Add command line arguments
 parser = argparse.ArgumentParser()
-parser.add_argument("--clean", action="store_true", help="delete the directories ./checkouts and ./reports")
+parser.add_argument("--clean", action="store_true", help="delete the directories ./checkouts and ./reports. When --clean is present all other commands are ignored.")
+parser.add_argument("--dry-run", action="store_true", help="run the script in dry run mode, don't execute any commands")
+parser.add_argument("--org-type", choices=["users", "orgs"], help="set the organization type")
+parser.add_argument("--owners", type=str, help="comma-delimited list of owners")
 args = parser.parse_args()
 
-ORG_TYPE = "users"  # This can be either "users" or "orgs"
-TARGETS = ["austimkelly"]  # This can be a username or an org name
+# If --clean is not used, --org-type and --owners are required
+if not args.clean and (args.org_type is None or args.owners is None):
+    parser.error("--org-type and --owners are required unless --clean is used")
+
+DRY_RUN = args.dry_run  # Set to True if --dry-run is present, False otherwise
+print(f"DRY_RUN={DRY_RUN}")
+
+ORG_TYPE = args.org_type if args.org_type else None # This can be "users" or "orgs"
+TARGETS = args.owners.split(",") if args.owners else None  # Split the value of --owners into a list if present, None otherwise
 TOKEN = os.getenv('GITHUB_ACCESS_TOKEN')
 CHECKOUT_DIR = "./checkout"  # This is the directory where the repositories will be cloned
 REPORTS_DIR = "./reports"  # This is the directory where the gitleaks reports will be saved
@@ -26,15 +36,15 @@ if TOKEN is None:
     print("Error: GITHUB_ACCESS_TOKEN environment variable not set")
     exit(1)
 
-DRY_RUN = False  # Set to False to actually execute commands
-print(f"DRY_RUN={DRY_RUN}")
-
 # If the --clean argument is present, delete the directories
 if args.clean:
     confirm = input("Are you sure you want to delete the directories ./checkouts and ./reports? (y/n): ")
     if confirm.lower() == "y":
-        shutil.rmtree(CHECKOUT_DIR, ignore_errors=True)
-        shutil.rmtree(REPORTS_DIR, ignore_errors=True)
+        if DRY_RUN:
+            print("Deleting directories ./checkouts and ./reports...")
+        else:
+            shutil.rmtree(CHECKOUT_DIR, ignore_errors=True)
+            shutil.rmtree(REPORTS_DIR, ignore_errors=True)
     else:
         print("Operation cancelled.")
     exit(0)
@@ -108,6 +118,31 @@ def fetch_repos(account_type, account, headers, page=1, per_page=100):
         page += 1
     return repos
 
+def do_gitleaks_scan(target, repo_name, repo_path):
+    # Run gitleaks in each repository. See https://github.com/gitleaks/gitleaks?tab=readme-ov-file#usage
+    print(f"Running gitleaks on {repo_path}...")
+    command = [
+        "gitleaks",
+        "detect",
+        "-f", # --report-format string
+        "csv",
+        "-r", # --report-path string
+        f"./reports/gitleaks_findings_{target}_{repo_name}.csv",
+        "--source",
+        f"{repo_path}",
+        "-c", # --config string
+        "./.gitleaks.toml", 
+        "-v"
+    ]
+    print("gitleaks command:", " ".join(command))
+    if not DRY_RUN:
+        result = subprocess.run(command, capture_output=True, text=True, check=False)
+        print(result.stdout)
+        print(result.stderr)
+
+        if result.returncode != 0:
+            print(f"Error: gitleaks command returned non-zero exit status {result.returncode}")
+
 # make ./reports directory if it doesn't exist
 if not os.path.exists(REPORTS_DIR):
     os.makedirs(REPORTS_DIR)
@@ -126,42 +161,21 @@ for target in TARGETS:
     else:
         # Clone each repository
         for repo in repos:
-            repo_name = os.path.join(CHECKOUT_DIR, os.path.basename(urlparse(repo["clone_url"]).path).replace(".git", ""))
+            repo_checkout_path = os.path.join(CHECKOUT_DIR, os.path.basename(urlparse(repo["clone_url"]).path).replace(".git", ""))
             repo_bare_name = os.path.basename(urlparse(repo["clone_url"]).path).replace(".git", "")
 
             # Check if the directory already exists
-            print(f"Checking if repo {repo_name} exists or clone if not.")
-            if os.path.exists(repo_name):
-                print(f"Repository {repo_name} already exists. Skipping cloning.")
+            print(f"Checking if repo {repo_checkout_path} exists or clone if not.")
+            if os.path.exists(repo_checkout_path):
+                print(f"Repository {repo_checkout_path} already exists. Skipping cloning.")
             else:
-                print(f"git clone {repo['clone_url']} {repo_name}")
+                print(f"git clone {repo['clone_url']} {repo_checkout_path}")
                 if not DRY_RUN:
-                    subprocess.run(["git", "clone", repo["clone_url"], f"{repo_name}"], check=True)
+                    subprocess.run(["git", "clone", repo["clone_url"], f"{repo_checkout_path}"], check=True)
 
-            # Run gitleaks in each repository. See https://github.com/gitleaks/gitleaks?tab=readme-ov-file#usage
-            print(f"Running gitleaks on {repo_name}...")
-            command = [
-                "gitleaks",
-                "detect",
-                "-f", # --report-format string
-                "csv",
-                "-r", # --report-path string
-                f"./reports/gitleaks_findings_{target}_{repo_bare_name}.csv",
-                "--source",
-                f"{repo_name}",
-                "-c", # --config string
-                "./.gitleaks.toml", 
-                "-v"
-            ]
-            print("gitleaks command:", " ".join(command))
-            if not DRY_RUN:
-                result = subprocess.run(command, capture_output=True, text=True, check=False)
-                print(result.stdout)
-                print(result.stderr)
+            do_gitleaks_scan(target, repo_bare_name, repo_checkout_path)
 
-                if result.returncode != 0:
-                    print(f"Error: gitleaks command returned non-zero exit status {result.returncode}")
-
+            
 # Concatenate all CSV files into a single CSV file
 print("Concatenating CSV files...")
 concatenate_csv_files()
