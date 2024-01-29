@@ -14,6 +14,9 @@ import csv
 import json
 import sys
 
+# import all functions from csv_coalesce.py
+from csv_coalesce import *
+
 # Add command line arguments
 parser = argparse.ArgumentParser()
 parser.add_argument("--clean", action="store_true", help="delete the directories ./checkouts and ./reports. When --clean is present all other commands are ignored.")
@@ -63,7 +66,7 @@ if args.clean:
     exit(0)
 
 # Function to concatenate CSV files
-def concatenate_csv_files():
+def concatenate_csv_files(report_filename):
     # Get a list of all CSV files in the {REPORTS_DIR} directory
     csv_files = glob.glob(f'{REPORTS_DIR}/*.csv')
 
@@ -108,12 +111,12 @@ def concatenate_csv_files():
 
     # Check if concatenated_df is empty
     if concatenated_df.empty:
-        print("WARNING: No results to write to gitleaks_report_concat.csv")
+        print(f"WARNING: No results to write to {report_filename}")
     else:
         # Write the concatenated DataFrame to a new CSV file
-        print(f"Writing concatenated CSV file to {REPORTS_DIR}/gitleaks_report_concat.csv...")
+        print(f"Writing concatenated CSV file to ./{report_filename}...")
         if not DRY_RUN:
-            concatenated_df.to_csv('gitleaks_report_concat.csv', index=False)
+            concatenated_df.to_csv(f"{report_filename}", index=False)
 
 def fetch_repos(account_type, account, headers, page=1, per_page=100):
     repos = []
@@ -181,6 +184,34 @@ def do_trufflehog_scan(target, repo_name, repo_path, report_filename):
                 else:
                     print(f"Unexpected structure in finding: {finding}")
 
+def analyze_merged_results(merged_results):
+    df = pd.read_csv(merged_results)
+
+    # Get the distinct owner values
+    distinct_owners = df['owner'].unique()
+    print(f"Owners: {distinct_owners}")
+
+    # Get the distinct source values
+    distinct_sources = df['source'].unique()
+    print(f"Scanning Source Tools: {distinct_sources}")
+
+    # Count the total distinct repo_name
+    total_repos = df['repo_name'].count()
+    print(f"Total Repos: {total_repos}")
+
+    # Group by source and count total values
+    total_secrets_by_source = df.groupby('source')['secret'].count().to_dict()
+    print(f"Total Secrets by Source: {total_secrets_by_source}")
+
+    # Count the number of total secrets in the secret column
+    total_secrets = df['secret'].count()
+    print(f"Total Secrets: {total_secrets}")
+
+    # Count the number of total distinct secrets in the secrets column
+    total_distinct_secrets = df['secret'].nunique()
+    print(f"Total Distinct Secrets: {total_distinct_secrets}")
+
+
 # make ./reports directory if it doesn't exist
 if not os.path.exists(REPORTS_DIR):
     os.makedirs(REPORTS_DIR)
@@ -226,7 +257,19 @@ for target in TARGETS:
             do_trufflehog_scan(target, repo_bare_name, repo_checkout_path, trufflehog_report_filename)
             
 # Concatenate all CSV files into a single CSV file
-print("Concatenating CSV files...")
-concatenate_csv_files()
+print("Concatenating gitleaks report CSV files...")
+timestamp = datetime.now().strftime('%Y%m%d%H%M')
+gitleaks_merged_report_filename = f'gitleaks_report_merged_filename_{timestamp}.csv'
+concatenate_csv_files(gitleaks_merged_report_filename)
 
-print("Script execution completed.")
+print("Secrets scanning execution completed.")
+print("Creating merge and match reports.")
+
+# Create a unified reports of all secrets as well as a match report limited results
+# only to (fuzzy) matches found among the secrets results
+merged_report_name = 'merged_scan_results_report.csv'
+unify_csv_files(trufflehog_report_filename, gitleaks_merged_report_filename, merged_report_name)
+find_matches(merged_report_name, 'scanning_tool_matches_only.csv')
+
+# Aggregate report results
+analyze_merged_results(merged_report_name)

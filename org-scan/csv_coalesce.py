@@ -65,7 +65,7 @@ def unify_csv_files(trufflehog_file, gitleaks_file, output_file):
 def find_matches(input_file, output_file):
     # Define the headers for the input and output CSV files
     input_headers = ['source', 'owner', 'repo_name', 'file', 'line', 'secret', 'th_source_id', 'th_source_type', 'th_source_name', 'th_detector_type', 'th_detector_name', 'th_decoder_name', 'th_verified', 'th_raw', 'th_raw_v2', 'th_redacted', 'gl_owner', 'gl_commit', 'gl_symlink_file', 'gl_secret', 'gl_match', 'gl_start_line', 'gl_end_line', 'gl_start_column', 'gl_end_column', 'gl_author', 'gl_message', 'gl_date', 'gl_email', 'gl_fingerprint', 'gl_tags']
-    output_headers = ['match', 'match_score', 'match_source', 'matched_on_source', 'match_reason'] + input_headers
+    output_headers = ['match', 'match_score', 'match_source', 'matched_on_source', 'match_reason'] + input_headers + [f'matched_{key}' for key in input_headers if key.startswith('gl_') or key.startswith('th_')]
 
     # Open the input CSV file and read the data into a list of dictionaries
     with open(input_file, 'r') as f_in:
@@ -93,6 +93,9 @@ def find_matches(input_file, output_file):
             if match_score > 50:
                 # Create a new dictionary for the output row, copying all fields from the input row
                 output_row = {k: row[k] for k in input_headers}
+                for key in other_row:
+                    if key.startswith('gl_') or key.startswith('th_'):
+                        output_row[f'matched_{key}'] = other_row[key]
                 # Replace the 'source' field with 'match'
                 output_row['match'] = output_row.pop('source')
                 # Add the match score, match source, matched on source, and match reason fields
@@ -112,7 +115,4 @@ def find_matches(input_file, output_file):
         writer.writeheader()
         writer.writerows(matches)
 
-# Call the functions
-unify_csv_files('trufflehog_results_202401260938.csv', 'gitleaks_report_concat.csv', 'unified.csv')
-find_matches('unified.csv', 'matches.csv')
 
