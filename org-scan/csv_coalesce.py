@@ -1,8 +1,12 @@
 import csv
 from fuzzywuzzy import fuzz
 
-def unify_csv_files(trufflehog_file, gitleaks_file, output_file):
-    unified_headers = ['source', 'owner', 'repo_name', 'file', 'line', 'secret', 'th_source_id', 'th_source_type', 'th_source_name', 'th_detector_type', 'th_detector_name', 'th_decoder_name', 'th_verified', 'th_raw', 'th_raw_v2', 'th_redacted', 'gl_owner', 'gl_commit', 'gl_symlink_file', 'gl_secret', 'gl_match', 'gl_start_line', 'gl_end_line', 'gl_start_column', 'gl_end_column', 'gl_author', 'gl_message', 'gl_date', 'gl_email', 'gl_fingerprint', 'gl_tags']
+def unify_csv_files(trufflehog_file, gitleaks_file, ghas_alerts_file, output_file):
+    unified_headers = ['source', 'owner', 'repo_name', 'file', 'line', 'secret', 
+                        'th_source_id', 'th_source_type', 'th_source_name', 'th_detector_type', 'th_detector_name', 'th_decoder_name', 'th_verified', 'th_raw', 'th_raw_v2', 'th_redacted', 
+                        'gl_owner', 'gl_commit', 'gl_symlink_file', 'gl_secret', 'gl_match', 'gl_start_line', 'gl_end_line', 'gl_start_column', 'gl_end_column', 'gl_author', 'gl_message', 'gl_date', 'gl_email', 'gl_fingerprint', 'gl_tags',
+                        'ghas_number', 'ghas_rule', 'ghas_state', 'ghas_created_at', 'ghas_html_url'
+                       ]
 
     with open(output_file, 'w', newline='') as f_out:
         writer = csv.DictWriter(f_out, fieldnames=unified_headers, extrasaction='ignore')
@@ -60,6 +64,27 @@ def unify_csv_files(trufflehog_file, gitleaks_file, output_file):
                 row['gl_tags'] = row.pop('Tags', '')
 
                 writer.writerow(row)
+
+         # GHAS Secrets CSV
+        with open(ghas_alerts_file, 'r') as f_in:
+            reader = csv.DictReader(f_in)
+            for row in reader:
+                # Schema: owner,repo,number,rule,state,created_at,html_url
+                row['source'] = 'ghas'
+                row['owner'] = row.pop('owner', '')
+                row['repo_name'] = row.pop('repo', '')
+                row['file'] = row.pop('unavailable', '')
+                row['line'] = row.pop('unavailable', '')
+                row['secret'] = row.pop('unavailable', '')
+                # only in ghas
+                row['ghas_number'] = row.pop('number', '')
+                row['ghas_rule'] = row.pop('rule', '')
+                row['ghas_state'] = row.pop('state', '')
+                row['ghas_created_at'] = row.pop('created_at', '')
+                row['ghas_html_url'] = row.pop('html_url', '')
+
+                writer.writerow(row)
+
 
 
 def find_matches(input_file, output_file):

@@ -14,8 +14,9 @@ import csv
 import json
 import sys
 
-# import all functions from csv_coalesce.py
+# import all functions our helper modules
 from csv_coalesce import *
+from ghas_secret_alerts_fetch import *
 
 # Add command line arguments
 parser = argparse.ArgumentParser()
@@ -36,7 +37,10 @@ ORG_TYPE = args.org_type if args.org_type else None # This can be "users" or "or
 TARGETS = args.owners.split(",") if args.owners else None  # Split the value of --owners into a list if present, None otherwise
 TOKEN = os.getenv('GITHUB_ACCESS_TOKEN')
 CHECKOUT_DIR = "./checkout"  # This is the directory where the repositories will be cloned
-REPORTS_DIR = "./reports"  # This is the directory where the gitleaks reports (per repo) will be saved
+GITLEAKS_REPORTS_DIR = "./gitleaks_reports"  # This is the directory where the gitleaks reports (per repo) will be saved
+
+timestamp = datetime.now().strftime('%Y%m%d%H%M')
+REPORTS_DIR = f"./reports/reports_{timestamp}"  # This is where aggregated results are saved
 
 def check_commands():
     commands = ["gitleaks", "git", "trufflehog"]
@@ -60,15 +64,15 @@ if args.clean:
             print("Deleting directories ./checkouts and ./reports...")
         else:
             shutil.rmtree(CHECKOUT_DIR, ignore_errors=True)
-            shutil.rmtree(REPORTS_DIR, ignore_errors=True)
+            shutil.rmtree(GITLEAKS_REPORTS_DIR, ignore_errors=True)
     else:
         print("Operation cancelled.")
     exit(0)
 
 # Function to concatenate CSV files
-def concatenate_csv_files(report_filename):
-    # Get a list of all CSV files in the {REPORTS_DIR} directory
-    csv_files = glob.glob(f'{REPORTS_DIR}/*.csv')
+def concatenate_gitleaks_csv_files(gitleaks_report_filename):
+    # Get a list of all CSV files in the {GITLEAKS_REPORTS_DIR} directory
+    csv_files = glob.glob(f'{GITLEAKS_REPORTS_DIR}/*.csv')
 
     # Create a list to hold DataFrames
     df_list = []
@@ -89,7 +93,12 @@ def concatenate_csv_files(report_filename):
         repo_owner = base_name.split('_')[2]
 
         # Read the CSV file into a DataFrame
-        df = pd.read_csv(csv_file)
+        try:
+            df = pd.read_csv(csv_file)
+        except pd.errors.ParserError as e:
+            print(f"Error reading CSV file: {csv_file}")
+            print(e)
+            continue
         # Prepend a new column with the repository name
         df.insert(0, 'Owner', repo_owner)
         df.insert(1, 'Repository', repo_name)
@@ -111,12 +120,12 @@ def concatenate_csv_files(report_filename):
 
     # Check if concatenated_df is empty
     if concatenated_df.empty:
-        print(f"WARNING: No results to write to {report_filename}")
+        print(f"WARNING: No results to write to {gitleaks_report_filename}")
     else:
         # Write the concatenated DataFrame to a new CSV file
-        print(f"Writing concatenated CSV file to ./{report_filename}...")
+        print(f"Writing concatenated CSV file to ./{gitleaks_report_filename}...")
         if not DRY_RUN:
-            concatenated_df.to_csv(f"{report_filename}", index=False)
+            concatenated_df.to_csv(f"{gitleaks_report_filename}", index=False)
 
 def fetch_repos(account_type, account, headers, page=1, per_page=100):
     repos = []
@@ -141,7 +150,7 @@ def do_gitleaks_scan(target, repo_name, repo_path):
         "-f", # --report-format string
         "csv",
         "-r", # --report-path string
-        f"./reports/gitleaks_findings_{target}_{repo_name}.csv",
+        f"{GITLEAKS_REPORTS_DIR}/gitleaks_findings_{target}_{repo_name}.csv",
         "--source",
         f"{repo_path}",
         "-c", # --config string
@@ -188,19 +197,23 @@ def analyze_merged_results(merged_results):
     df = pd.read_csv(merged_results)
 
     # Get the distinct owner values
-    distinct_owners = df['owner'].unique()
+    distinct_owners = df['owner'].nunique()
     print(f"Owners: {distinct_owners}")
 
     # Get the distinct source values
-    distinct_sources = df['source'].unique()
+    distinct_sources = df['source'].nunique()
     print(f"Scanning Source Tools: {distinct_sources}")
 
+    # Total repos checked out on disk  
+    total_repos = count_top_level_dirs(CHECKOUT_DIR)
+    print(f"Total Repos on Disk: {total_repos}")
+
     # Count the total distinct repo_name
-    total_repos = df['repo_name'].count()
-    print(f"Total Repos: {total_repos}")
+    total_repos = df['repo_name'].nunique()
+    print(f"Total Repos with Secrets: {total_repos}")
 
     # Group by source and count total values
-    total_secrets_by_source = df.groupby('source')['secret'].count().to_dict()
+    total_secrets_by_source = df.groupby('source')['source'].count().to_dict()
     print(f"Total Secrets by Source: {total_secrets_by_source}")
 
     # Count the number of total secrets in the secret column
@@ -211,25 +224,40 @@ def analyze_merged_results(merged_results):
     total_distinct_secrets = df['secret'].nunique()
     print(f"Total Distinct Secrets: {total_distinct_secrets}")
 
+def clone_repo(repo, repo_checkout_path):
+    # Check if the directory already exists
+    print(f"Checking if repo {repo_checkout_path} exists or clone if not.")
+    if os.path.exists(repo_checkout_path):
+        print(f"Repository {repo_checkout_path} already exists. Skipping cloning.")
+    else:
+        print(f"git clone {repo['clone_url']} {repo_checkout_path}")
+        if not DRY_RUN:
+            subprocess.run(["git", "clone", repo["clone_url"], f"{repo_checkout_path}"], check=True)
 
-# make ./reports directory if it doesn't exist
+def count_top_level_dirs(directory):
+    return len([name for name in os.listdir(directory) if os.path.isdir(os.path.join(directory, name))])
+
+checkout_dir = "./checkout"
+print(f"Number of top-level directories in {checkout_dir}: {count_top_level_dirs(checkout_dir)}")
+
+# make reporting directories if they doesn't exist
+if not os.path.exists(GITLEAKS_REPORTS_DIR):
+    os.makedirs(GITLEAKS_REPORTS_DIR)
 if not os.path.exists(REPORTS_DIR):
     os.makedirs(REPORTS_DIR)
 
-# Get list of repositories for the TARGET
-
 headers = {"Authorization": f"token {TOKEN}"}
 
-# create a CSV file for trufflehog findings with format: trufflehog_results_YYYYMMDDHHMM.csv
 # Column headers for trufflehog report
 column_headers = ['target', 'repo_name', 'file', 'line', 'source_id', 'source_type', 'source_name', 'detector_type', 'detector_name', 'decoder_name', 'verified', 'raw', 'raw_v2', 'redacted']
-timestamp = datetime.now().strftime('%Y%m%d%H%M')
-trufflehog_report_filename = f'trufflehog_results_{timestamp}.csv'
+trufflehog_report_filename = f'{REPORTS_DIR}/trufflehog_results_{timestamp}.csv'
 with open(trufflehog_report_filename, 'w', newline='') as f:
     writer = csv.writer(f)
     writer.writerow(column_headers)
 
+
 for target in TARGETS:
+    # Get list of repositories for the TARGET
     url = f"https://api.github.com/{ORG_TYPE}/{target}/repos"
     print(f"Getting list of repositories from {url}...")
     repos = fetch_repos(ORG_TYPE, target, headers)
@@ -243,14 +271,7 @@ for target in TARGETS:
             repo_checkout_path = os.path.join(CHECKOUT_DIR, os.path.basename(urlparse(repo["clone_url"]).path).replace(".git", ""))
             repo_bare_name = os.path.basename(urlparse(repo["clone_url"]).path).replace(".git", "")
 
-            # Check if the directory already exists
-            print(f"Checking if repo {repo_checkout_path} exists or clone if not.")
-            if os.path.exists(repo_checkout_path):
-                print(f"Repository {repo_checkout_path} already exists. Skipping cloning.")
-            else:
-                print(f"git clone {repo['clone_url']} {repo_checkout_path}")
-                if not DRY_RUN:
-                    subprocess.run(["git", "clone", repo["clone_url"], f"{repo_checkout_path}"], check=True)
+            clone_repo(repo, repo_checkout_path)
 
             do_gitleaks_scan(target, repo_bare_name, repo_checkout_path)
             
@@ -258,18 +279,25 @@ for target in TARGETS:
             
 # Concatenate all CSV files into a single CSV file
 print("Concatenating gitleaks report CSV files...")
-timestamp = datetime.now().strftime('%Y%m%d%H%M')
-gitleaks_merged_report_filename = f'gitleaks_report_merged_filename_{timestamp}.csv'
-concatenate_csv_files(gitleaks_merged_report_filename)
+gitleaks_merged_report_filename = f"{REPORTS_DIR}/gitleaks_report_merged_filename_{timestamp}.csv"
+concatenate_gitleaks_csv_files(gitleaks_merged_report_filename)
+
+ghas_secret_alerts_filename = f"{REPORTS_DIR}/ghas_secret_alerts_{timestamp}.csv"
+fetch_ghas_secret_scanning_alerts(ORG_TYPE, TARGETS, headers, ghas_secret_alerts_filename)
 
 print("Secrets scanning execution completed.")
 print("Creating merge and match reports.")
 
-# Create a unified reports of all secrets as well as a match report limited results
-# only to (fuzzy) matches found among the secrets results
-merged_report_name = 'merged_scan_results_report.csv'
-unify_csv_files(trufflehog_report_filename, gitleaks_merged_report_filename, merged_report_name)
-find_matches(merged_report_name, 'scanning_tool_matches_only.csv')
+# Create a unified reports of all secrets 
+merged_report_name = f"{REPORTS_DIR}/merged_scan_results_report_{timestamp}.csv"
+unify_csv_files(trufflehog_report_filename, 
+                gitleaks_merged_report_filename,  
+                ghas_secret_alerts_filename, 
+                merged_report_name)
+
+# Create another report that is a subset of the merged report, 
+# with only fuzzy matches found among the secrets results   
+find_matches(merged_report_name, f"{REPORTS_DIR}/scanning_tool_matches_only.csv")
 
 # Aggregate report results
 analyze_merged_results(merged_report_name)
