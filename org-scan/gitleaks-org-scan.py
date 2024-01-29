@@ -138,6 +138,7 @@ def fetch_repos(account_type, account, headers, page=1, per_page=100):
         if DRY_RUN:
             print(f"Calling {repos_url}...")
         response = requests.get(repos_url, headers=headers)
+
         data = response.json()
         repos.extend(data)
         if len(data) < per_page:
@@ -274,15 +275,18 @@ with open(trufflehog_report_filename, 'w', newline='') as f:
 
 for target in TARGETS:
     # Get list of repositories for the TARGET
-    url = f"https://api.github.com/{ORG_TYPE}/{target}/repos"
+    url = f"https://api.github.com/{ORG_TYPE}/{target}/repos?&type=internal"
     print(f"Getting list of repositories from {url}...")
     repos = fetch_repos(ORG_TYPE, target, headers)
-
+    
     # Check if the response contains an error message
     if "message" in repos and repos["message"] == "Not Found":
         print("Error: Repos not found for owner (target). Double-check the TARGETS.")
+    elif repos is None or len(repos) == 0:
+        print(f"ERROR: No repositories found for {target}. Please check your personal access token and that you have the correct permission to read from the organization")
+        exit(1)
     else:
-        # Clone each repository
+        # Clone each repository and do a basic gitleaks and trufflehog scan
         for repo in repos:
             repo_checkout_path = os.path.join(CHECKOUT_DIR, os.path.basename(urlparse(repo["clone_url"]).path).replace(".git", ""))
             repo_bare_name = os.path.basename(urlparse(repo["clone_url"]).path).replace(".git", "")
