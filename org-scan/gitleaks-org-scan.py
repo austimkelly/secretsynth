@@ -275,7 +275,7 @@ with open(trufflehog_report_filename, 'w', newline='') as f:
 
 for target in TARGETS:
     # Get list of repositories for the TARGET
-    url = f"https://api.github.com/{ORG_TYPE}/{target}/repos?&type=internal"
+    url = f"https://api.github.com/{ORG_TYPE}/{target}/repos"
     print(f"Getting list of repositories from {url}...")
     repos = fetch_repos(ORG_TYPE, target, headers)
     
@@ -283,7 +283,7 @@ for target in TARGETS:
     if "message" in repos and repos["message"] == "Not Found":
         print("Error: Repos not found for owner (target). Double-check the TARGETS.")
     elif repos is None or len(repos) == 0:
-        print(f"ERROR: No repositories found for {target}. Please check your personal access token and that you have the correct permission to read from the organization")
+        print(f"ERROR: No repositories found for {target}. Please check your personal access token and that you have the correct permission to read from")
         exit(1)
     else:
         # Clone each repository and do a basic gitleaks and trufflehog scan
