@@ -24,6 +24,9 @@ parser.add_argument("--clean", action="store_true", help="delete the directories
 parser.add_argument("--dry-run", action="store_true", help="run the script in dry run mode, don't execute any commands")
 parser.add_argument("--org-type", choices=["users", "orgs"], help="set the organization type")
 parser.add_argument("--owners", type=str, help="comma-delimited list of owners")
+parser.add_argument("--keep-secrets-in-reports", action="store_true",
+                    help="Keep plain text secrets in the aggregated reports.")
+
 args = parser.parse_args()
 
 # If --clean is not used, --org-type and --owners are required
@@ -33,6 +36,7 @@ if not args.clean and (args.org_type is None or args.owners is None):
 DRY_RUN = args.dry_run  # Set to True if --dry-run is present, False otherwise
 print(f"DRY_RUN={DRY_RUN}")
 
+KEEP_SECRETS = args.keep_secrets_in_reports
 ORG_TYPE = args.org_type if args.org_type else None # This can be "users" or "orgs"
 TARGETS = args.owners.split(",") if args.owners else None  # Split the value of --owners into a list if present, None otherwise
 TOKEN = os.getenv('GITHUB_ACCESS_TOKEN')
@@ -255,7 +259,6 @@ with open(trufflehog_report_filename, 'w', newline='') as f:
     writer = csv.writer(f)
     writer.writerow(column_headers)
 
-
 for target in TARGETS:
     # Get list of repositories for the TARGET
     url = f"https://api.github.com/{ORG_TYPE}/{target}/repos"
@@ -290,9 +293,10 @@ print("Creating merge and match reports.")
 
 # Create a unified reports of all secrets 
 merged_report_name = f"{REPORTS_DIR}/merged_scan_results_report_{timestamp}.csv"
-unify_csv_files(trufflehog_report_filename, 
+merge_csv_all_tools(trufflehog_report_filename, 
                 gitleaks_merged_report_filename,  
-                ghas_secret_alerts_filename, 
+                ghas_secret_alerts_filename,
+                KEEP_SECRETS, 
                 merged_report_name)
 
 # Create another report that is a subset of the merged report, 
@@ -301,3 +305,9 @@ find_matches(merged_report_name, f"{REPORTS_DIR}/scanning_tool_matches_only.csv"
 
 # Aggregate report results
 analyze_merged_results(merged_report_name)
+
+if not KEEP_SECRETS:
+    # Delete gitleaks_merged_report_filename & trufflehog_report_filename
+    # because these reports contain secrets in plain text
+    print(f"Deleting {trufflehog_report_filename} and {gitleaks_merged_report_filename}...")
+    os.remove(gitleaks_merged_report_filename)

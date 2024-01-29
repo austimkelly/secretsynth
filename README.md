@@ -46,6 +46,9 @@ optional arguments:
   --org-type {users,orgs}
                         set the organization type
   --owners OWNERS       comma-delimited list of owners
+  --keep-secrets-in-reports
+                        Keep plain text secrets in the aggregated reports. By default, secrets are
+                        obfuscated in the aggregated reports.
 ```
 
 1. Set your GitHub access token as an environment variable:
@@ -60,13 +63,21 @@ Gitleaks can generate a lot of false positives out of the box. So review results
 
 3. Run the script from the `org-scan` directory:
 
+Here are some examples of use cases for running the script:
+
 Example: Running on a personal owner account:
 
 `python3 gitleaks-org-scan.py --org-type users --owners austimkelly`
 
+Example: Running on a personal owner account and keeping plain text secrets in the output:
+
+`python3 gitleaks-org-scan.py --org-type users --owners austimkelly --keep-secrets-in-reports`
+
 Example: Running on multiple organizations:
 
 `python3 gitleaks-org-scan.py --org-type orgs --owners org1,org2,org3`
+
+Note: Multiple Github Personal Access Tokens are not supported yet.
 
 Example: Cleaning up source and scanning artifacts:
 

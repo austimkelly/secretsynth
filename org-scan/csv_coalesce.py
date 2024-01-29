@@ -1,7 +1,16 @@
 import csv
 from fuzzywuzzy import fuzz
+import hashlib
 
-def unify_csv_files(trufflehog_file, gitleaks_file, ghas_alerts_file, output_file):
+# Result is deterministic, but not reversible
+def hash_secret(secret):
+    # Create a hash object
+    hash_object = hashlib.sha256()
+    # Update the hash object with the bytes of the 'secret' value
+    hash_object.update(secret.encode())
+    return hash_object.hexdigest()
+
+def merge_csv_all_tools(trufflehog_file, gitleaks_file, ghas_alerts_file, keep_secrets, output_file):
     unified_headers = ['source', 'owner', 'repo_name', 'file', 'line', 'secret', 
                         'th_source_id', 'th_source_type', 'th_source_name', 'th_detector_type', 'th_detector_name', 'th_decoder_name', 'th_verified', 'th_raw', 'th_raw_v2', 'th_redacted', 
                         'gl_owner', 'gl_commit', 'gl_symlink_file', 'gl_secret', 'gl_match', 'gl_start_line', 'gl_end_line', 'gl_start_column', 'gl_end_column', 'gl_author', 'gl_message', 'gl_date', 'gl_email', 'gl_fingerprint', 'gl_tags',
@@ -21,7 +30,10 @@ def unify_csv_files(trufflehog_file, gitleaks_file, ghas_alerts_file, output_fil
                 row['repo_name'] = row.pop('repo_name', '')
                 row['file'] = row.pop('file', '')
                 row['line'] = row.pop('line', '')
-                row['secret'] = row.pop('raw', '')
+                if not keep_secrets:
+                    row['secret'] = hash_secret(row.pop('raw', ''))
+                else:
+                    row['secret'] = row.pop('raw', '')
                 # only in trufflehog
                 row['th_source_id'] = row.pop('source_id', '')
                 row['th_source_type'] = row.pop('source_type', '')
@@ -30,8 +42,12 @@ def unify_csv_files(trufflehog_file, gitleaks_file, ghas_alerts_file, output_fil
                 row['th_detector_name'] = row.pop('detector_name', '')
                 row['th_decoder_name'] = row.pop('decoder_name', '')
                 row['th_verified'] = row.pop('verified', '')
-                row['th_raw'] = row.pop('raw', '')
-                row['th_raw_v2'] = row.pop('raw_v2', '')
+                if not keep_secrets:
+                    row['th_raw'] = hash_secret(row.pop('raw', ''))
+                    row['th_raw_v2'] = hash_secret(row.pop('raw', ''))
+                else:
+                    row['th_raw'] = row.pop('raw', '')
+                    row['th_raw_v2'] = row.pop('raw_v2', '')    
                 row['th_redacted'] = row.pop('redacted', '')
                 writer.writerow(row)
 
@@ -44,14 +60,21 @@ def unify_csv_files(trufflehog_file, gitleaks_file, ghas_alerts_file, output_fil
                 row['repo_name'] = row.pop('Repository', '')
                 row['file'] = row.pop('File', '')
                 row['line'] = row.pop('StartLine', '')
-                row['secret'] = row.pop('Match', '')
+                if not keep_secrets:
+                    row['secret'] = hash_secret(row.pop('Match', ''))
+                else:
+                    row['secret'] = row.pop('raw', '')
                 # only in gitleaks
                 row['gl_endline'] = row.pop('EndLine', '')
                 # write these to row Commit,File,SymlinkFile,Secret,Match,StartLine,EndLine,StartColumn,EndColumn,Author,Message,Date,Email,Fingerprint,Tags
                 row['gl_commit'] = row.pop('Commit', '')
                 row['gl_symlink_file'] = row.pop('SymlinkFile', '')
-                row['gl_secret'] = row.pop('Secret', '')
-                row['gl_match'] = row.pop('Match', '')
+                if not keep_secrets:
+                    row['gl_secret'] = hash_secret(row.pop('Secret', ''))
+                    row['gl_match'] = hash_secret(row.pop('Match', ''))
+                else:
+                    row['gl_secret'] = row.pop('Secret', '')
+                    row['gl_match'] = row.pop('Match', '')
                 row['gl_start_line'] = row.pop('StartLine', '')
                 row['gl_end_line'] = row.pop('EndLine', '')
                 row['gl_start_column'] = row.pop('StartColumn', '')
@@ -73,7 +96,7 @@ def unify_csv_files(trufflehog_file, gitleaks_file, ghas_alerts_file, output_fil
                 row['source'] = 'ghas'
                 row['owner'] = row.pop('owner', '')
                 row['repo_name'] = row.pop('repo', '')
-                row['file'] = row.pop('unavailable', '')
+                row['file'] = row.pop('html_url', '')
                 row['line'] = row.pop('unavailable', '')
                 row['secret'] = row.pop('unavailable', '')
                 # only in ghas
@@ -84,7 +107,6 @@ def unify_csv_files(trufflehog_file, gitleaks_file, ghas_alerts_file, output_fil
                 row['ghas_html_url'] = row.pop('html_url', '')
 
                 writer.writerow(row)
-
 
 
 def find_matches(input_file, output_file):
