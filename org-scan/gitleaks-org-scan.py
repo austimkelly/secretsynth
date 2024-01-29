@@ -159,7 +159,7 @@ def do_gitleaks_scan(target, repo_name, repo_path):
         f"{repo_path}",
         "-c", # --config string
         "./.gitleaks.toml", 
-        "-v"
+        #"-v"
     ]
     print("gitleaks command:", " ".join(command))
     if not DRY_RUN:
@@ -197,36 +197,50 @@ def do_trufflehog_scan(target, repo_name, repo_path, report_filename):
                 else:
                     print(f"Unexpected structure in finding: {finding}")
 
-def analyze_merged_results(merged_results):
+def analyze_merged_results(merged_results, repo_names_no_ghas_secrets_enabled):
     df = pd.read_csv(merged_results)
 
-    # Get the distinct owner values
-    distinct_owners = df['owner'].nunique()
-    print(f"Owners: {distinct_owners}")
-
-    # Get the distinct source values
+    # Calculate the metrics
+    cmd_args = sys.argv
+    owners = df['owner'].nunique()
     distinct_sources = df['source'].nunique()
-    print(f"Scanning Source Tools: {distinct_sources}")
-
-    # Total repos checked out on disk  
-    total_repos = count_top_level_dirs(CHECKOUT_DIR)
-    print(f"Total Repos on Disk: {total_repos}")
-
-    # Count the total distinct repo_name
-    total_repos = df['repo_name'].nunique()
-    print(f"Total Repos with Secrets: {total_repos}")
-
-    # Group by source and count total values
+    total_repos_on_disk = count_top_level_dirs(CHECKOUT_DIR)
+    total_repos_with_secrets = df['repo_name'].nunique()
     total_secrets_by_source = df.groupby('source')['source'].count().to_dict()
-    print(f"Total Secrets by Source: {total_secrets_by_source}")
-
-    # Count the number of total secrets in the secret column
     total_secrets = df['secret'].count()
-    print(f"Total Secrets: {total_secrets}")
-
-    # Count the number of total distinct secrets in the secrets column
+    repos_without_ghas_secrets_scanning = len(repo_names_no_ghas_secrets_enabled) if repo_names_no_ghas_secrets_enabled else 0
     total_distinct_secrets = df['secret'].nunique()
-    print(f"Total Distinct Secrets: {total_distinct_secrets}")
+
+    # Create a DataFrame with the metrics
+    metrics = pd.DataFrame({
+        'Metric': ['Arguments', 'Owners', 'Scanning Source Tools', 'Total Repos on Disk', 'Total Repos with Secrets', 'Total Secrets by Source', 'Total Secrets', 'Repos without GHAS Secrets Scanning Enabled', 'Total Distinct Secrets'],
+        'Value': [cmd_args, owners, distinct_sources, total_repos_on_disk, total_repos_with_secrets, total_secrets_by_source, total_secrets, repos_without_ghas_secrets_scanning, total_distinct_secrets]
+    })
+
+    return metrics
+
+def output_to_html(metrics, merged_report_name, ghas_secret_alerts_filename, matches_report_name, report_path):
+    # Create a DataFrame with links to the raw report files
+    report_links = pd.DataFrame({
+        'Report Name': ['Merged Report', 'GHAS Secret Alerts', 'Matches Report'],
+        'CSV Link': [f'<a href="{merged_report_name}">{merged_report_name}</a>',
+                     f'<a href="{ghas_secret_alerts_filename}">{ghas_secret_alerts_filename}</a>',
+                     f'<a href="{matches_report_name}">{matches_report_name}</a>']
+    })
+
+    # Convert the DataFrames to HTML
+    metrics_html = metrics.to_html()
+    report_links_html = report_links.to_html(escape=False)
+
+    # Write the HTML to a file
+    with open(report_path, 'w') as f:
+        f.write('<h1>Metrics</h1>')
+        f.write(metrics_html)
+        f.write('<h1>Report Links</h1>')
+        f.write(report_links_html)
+
+    # Print the absolute path of the HTML file
+    print(f"HTML file written to: {report_path}")
 
 def clone_repo(repo, repo_checkout_path):
     # Check if the directory already exists
@@ -241,14 +255,13 @@ def clone_repo(repo, repo_checkout_path):
 def count_top_level_dirs(directory):
     return len([name for name in os.listdir(directory) if os.path.isdir(os.path.join(directory, name))])
 
-checkout_dir = "./checkout"
-print(f"Number of top-level directories in {checkout_dir}: {count_top_level_dirs(checkout_dir)}")
-
 # make reporting directories if they doesn't exist
 if not os.path.exists(GITLEAKS_REPORTS_DIR):
     os.makedirs(GITLEAKS_REPORTS_DIR)
 if not os.path.exists(REPORTS_DIR):
     os.makedirs(REPORTS_DIR)
+
+checkout_dir = "./checkout"
 
 headers = {"Authorization": f"token {TOKEN}"}
 
@@ -286,7 +299,7 @@ gitleaks_merged_report_filename = f"{REPORTS_DIR}/gitleaks_report_merged_filenam
 concatenate_gitleaks_csv_files(gitleaks_merged_report_filename)
 
 ghas_secret_alerts_filename = f"{REPORTS_DIR}/ghas_secret_alerts_{timestamp}.csv"
-fetch_ghas_secret_scanning_alerts(ORG_TYPE, TARGETS, headers, ghas_secret_alerts_filename)
+repos_without_ghas_secrets_enabled = fetch_ghas_secret_scanning_alerts(ORG_TYPE, TARGETS, headers, ghas_secret_alerts_filename)
 
 print("Secrets scanning execution completed.")
 print("Creating merge and match reports.")
@@ -300,14 +313,18 @@ merge_csv_all_tools(trufflehog_report_filename,
                 merged_report_name)
 
 # Create another report that is a subset of the merged report, 
-# with only fuzzy matches found among the secrets results   
-find_matches(merged_report_name, f"{REPORTS_DIR}/scanning_tool_matches_only.csv")
-
-# Aggregate report results
-analyze_merged_results(merged_report_name)
+# with only fuzzy matches found among the secrets results
+matches_report_name = f"{REPORTS_DIR}/scanning_tool_matches_only_{timestamp}.csv" 
+find_matches(merged_report_name, matches_report_name)
 
 if not KEEP_SECRETS:
     # Delete gitleaks_merged_report_filename & trufflehog_report_filename
     # because these reports contain secrets in plain text
     print(f"Deleting {trufflehog_report_filename} and {gitleaks_merged_report_filename}...")
     os.remove(gitleaks_merged_report_filename)
+    os.remove(trufflehog_report_filename)
+
+# Aggregate report results
+metrics = analyze_merged_results(merged_report_name, repos_without_ghas_secrets_enabled)
+html_report_path = f"{REPORTS_DIR}/report_{timestamp}.html"
+output_to_html(metrics, f"../../{merged_report_name}", f"../../{ghas_secret_alerts_filename}", f"../../{matches_report_name}", html_report_path)

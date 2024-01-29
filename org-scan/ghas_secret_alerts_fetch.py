@@ -23,6 +23,7 @@ def fetch_ghas_secret_scanning_alerts(owner_type, owners, headers, report_name):
     with open(report_name, 'w', newline='') as csvfile:
         fieldnames = ['owner', 'repo', 'number', 'rule', 'state', 'created_at', 'html_url']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        repos_without_secrets_scanning = []
 
         writer.writeheader()
         for owner in owners:
@@ -34,12 +35,19 @@ def fetch_ghas_secret_scanning_alerts(owner_type, owners, headers, report_name):
 
                     # print alerts json response for each repo
                     if verbose_logging:
-                        print(f"Calling https://api.github.com/repos/{owner}/{repo['name']}/secret-scanning/alerts...")
+                        print(f"Calling https://api.github.com/repos/{owner}/{repo['name']}/secret-scanning/alerts ...")
                         print(alerts)
+
+                    # Check if message contains {'message': 'Resource not accessible by personal access token'} 
+                    if isinstance(alerts, dict) and 'message' in alerts and alerts['message'] == 'Resource not accessible by personal access token':
+                        print(f"ERROR: Invalid Person Access Token. Cannot fetch security alerts for {repo['name']}: {alerts['message']}")
+                        continue
 
                     # If the response is a dictionary with a 'message' key, skip this iteration
                     if isinstance(alerts, dict) and 'message' in alerts:
                         print(f"Skipping {repo['name']}: {alerts['message']}")
+                        if 'message' in alerts and alerts['message'] == 'Secret scanning is disabled on this repository.':
+                            repos_without_secrets_scanning.append(repo)
                         continue
 
                     # Write each alert to the CSV file
@@ -53,3 +61,5 @@ def fetch_ghas_secret_scanning_alerts(owner_type, owners, headers, report_name):
                             'created_at': alert['created_at'],
                             'html_url': alert['html_url'],
                         })
+
+                    return repos_without_secrets_scanning
