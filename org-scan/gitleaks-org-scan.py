@@ -24,7 +24,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--clean", action="store_true", help="delete the directories ./checkouts and ./reports. When --clean is present all other commands are ignored.")
 parser.add_argument("--dry-run", action="store_true", help="run the script in dry run mode, don't execute any commands")
 parser.add_argument("--keep-secrets-in-reports", action="store_true",
-                    help="Keep plain text secrets in the aggregated reports.")
+                    help="Keep plain text secrets in the aggregated reports. By default the tool will hash secrets for final reports if this flag is missing.")
 parser.add_argument("--repos-internal-type", action="store_true", help="If your repositories are internal, this flag will be added when fetching repositories from Github.")
 parser.add_argument("--org-type", choices=["users", "orgs"], help="set the organization type")
 parser.add_argument("--owners", type=str, help="comma-delimited list of owners")
