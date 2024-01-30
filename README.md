@@ -9,12 +9,12 @@ gitleaks-utils, in its current form, is a utility for evaluating discovered secr
 
 ## Why gitleaks-utils?
 
-In short, to help you 
+In short, to help you: 
 
-* You don't know what secrets scanning solution to use
-* You don't know how many secrets may be discovered in your repositories
-* You want to identify true positives and remediate them before rolling out an alerting system
-* You want to identify false positives and tune your alerting system to eliminate noisy alerts
+* Identify what secrets scanning solution(s) to use
+* Know how many secrets may be discovered in your repositories (like a dry run)
+* Identify true positives and remediate them before rolling out an alerting system
+* Identify false positives and tune your alerting system to eliminate noisy alerts
 
 # License
 
