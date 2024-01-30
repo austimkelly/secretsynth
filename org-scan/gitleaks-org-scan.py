@@ -22,10 +22,11 @@ from ghas_secret_alerts_fetch import *
 parser = argparse.ArgumentParser()
 parser.add_argument("--clean", action="store_true", help="delete the directories ./checkouts and ./reports. When --clean is present all other commands are ignored.")
 parser.add_argument("--dry-run", action="store_true", help="run the script in dry run mode, don't execute any commands")
-parser.add_argument("--org-type", choices=["users", "orgs"], help="set the organization type")
-parser.add_argument("--owners", type=str, help="comma-delimited list of owners")
 parser.add_argument("--keep-secrets-in-reports", action="store_true",
                     help="Keep plain text secrets in the aggregated reports.")
+parser.add_argument("--repos-internal-type", action="store_true", help="If your repositories are internal, this flag will be added when fetching repositories from Github.")
+parser.add_argument("--org-type", choices=["users", "orgs"], help="set the organization type")
+parser.add_argument("--owners", type=str, help="comma-delimited list of owners")
 
 args = parser.parse_args()
 
@@ -37,8 +38,9 @@ DRY_RUN = args.dry_run  # Set to True if --dry-run is present, False otherwise
 print(f"DRY_RUN={DRY_RUN}")
 
 KEEP_SECRETS = args.keep_secrets_in_reports
+INTERNAL_REPOS_FLAG=args.repos_internal_type
 ORG_TYPE = args.org_type if args.org_type else None # This can be "users" or "orgs"
-TARGETS = args.owners.split(",") if args.owners else None  # Split the value of --owners into a list if present, None otherwise
+OWNERS = args.owners.split(",") if args.owners else None  # Split the value of --owners into a list if present, None otherwise
 TOKEN = os.getenv('GITHUB_ACCESS_TOKEN')
 CHECKOUT_DIR = "./checkout"  # This is the directory where the repositories will be cloned
 GITLEAKS_REPORTS_DIR = "./gitleaks_reports"  # This is the directory where the gitleaks reports (per repo) will be saved
@@ -131,10 +133,14 @@ def concatenate_gitleaks_csv_files(gitleaks_report_filename):
         if not DRY_RUN:
             concatenated_df.to_csv(f"{gitleaks_report_filename}", index=False)
 
-def fetch_repos(account_type, account, headers, page=1, per_page=100):
+def fetch_repos(account_type, account, headers, internal_type=False, page=1, per_page=100):
+
     repos = []
     while True:
+        # Docs: https://docs.github.com/en/rest/repos/repos?apiVersion=2022-11-28#list-organization-repositories
         repos_url = f'https://api.github.com/{account_type}/{account}/repos?page={page}&per_page={per_page}'
+        if internal_type:
+            repos_url += '&type=internal'
         if DRY_RUN:
             print(f"Calling {repos_url}...")
 
@@ -149,6 +155,7 @@ def fetch_repos(account_type, account, headers, page=1, per_page=100):
         if len(data) < per_page:
             break
         page += 1
+
     return repos
 
 def do_gitleaks_scan(target, repo_name, repo_path):
@@ -277,18 +284,19 @@ with open(trufflehog_report_filename, 'w', newline='') as f:
     writer = csv.writer(f)
     writer.writerow(column_headers)
 
-for target in TARGETS:  # each target is an org name (or user)
+for owner in OWNERS: 
     # Get list of repositories for the TARGET
-    url = f"https://api.github.com/{ORG_TYPE}/{target}/repos"
+    url = f"https://api.github.com/{ORG_TYPE}/{owner}/repos"
     print(f"Getting list of repositories from {url}...")
-    repos = fetch_repos(ORG_TYPE, target, headers)
+    
+    repos = fetch_repos(ORG_TYPE, owner, headers, INTERNAL_REPOS_FLAG,)
     
     # Check if the response is a dictionary containing an error message
     if isinstance(repos, dict) and "message" in repos:
-        print(f"ERROR: Error on owner: {target} with message:  {repos['message']}")
+        print(f"ERROR: Error on owner: {owner} with message:  {repos['message']}")
         break;
     elif repos is None or len(repos) == 0:
-        print(f"ERROR: No repositories found for {target}. Please check your personal access token and that you have the correct permission to read from {target}")
+        print(f"ERROR: No repositories found for {owner}. Please check your Github personal access token and that you have the correct permission to read from the org: {owner}")
         continue;
     else:
         # Clone each repository and do a basic gitleaks and trufflehog scan
@@ -298,19 +306,23 @@ for target in TARGETS:  # each target is an org name (or user)
 
             clone_repo(repo, repo_checkout_path)
 
-            do_gitleaks_scan(target, repo_bare_name, repo_checkout_path)
+            do_gitleaks_scan(owner, repo_bare_name, repo_checkout_path)
             
-            do_trufflehog_scan(target, repo_bare_name, repo_checkout_path, trufflehog_report_filename)
+            do_trufflehog_scan(owner, repo_bare_name, repo_checkout_path, trufflehog_report_filename)
             
 # Concatenate all CSV files into a single CSV file
+if not os.path.exists(CHECKOUT_DIR):    # Skip if ./checkout does not exist
+    print("ERROR: The ./checkout folder does not exist. Check your git configuration and try again. No reports will be generated.")
+    exit(1)
+
 print("Concatenating gitleaks report CSV files...")
 gitleaks_merged_report_filename = f"{REPORTS_DIR}/gitleaks_report_merged_filename_{timestamp}.csv"
 concatenate_gitleaks_csv_files(gitleaks_merged_report_filename)
 
 ghas_secret_alerts_filename = f"{REPORTS_DIR}/ghas_secret_alerts_{timestamp}.csv"
-repos_without_ghas_secrets_enabled = fetch_ghas_secret_scanning_alerts(ORG_TYPE, TARGETS, headers, ghas_secret_alerts_filename)
-
+repos_without_ghas_secrets_enabled = fetch_ghas_secret_scanning_alerts(ORG_TYPE, OWNERS, headers, ghas_secret_alerts_filename)
 print("Secrets scanning execution completed.")
+
 print("Creating merge and match reports.")
 
 # Create a unified reports of all secrets 

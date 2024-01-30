@@ -40,15 +40,16 @@ usage: gitleaks-org-scan.py [-h] [--clean] [--dry-run] [--org-type {users,orgs}]
 
 optional arguments:
   -h, --help            show this help message and exit
-  --clean               delete the directories ./checkouts and ./reports. When --clean is present all
-                        other commands are ignored.
+  --clean               delete the directories ./checkouts and ./reports. When --clean is present all other commands are
+                        ignored.
   --dry-run             run the script in dry run mode, don't execute any commands
+  --keep-secrets-in-reports
+                        Keep plain text secrets in the aggregated reports.
+  --repos-internal-type
+                        If your repositories are internal, this flag will be added when fetching repositories from Github.
   --org-type {users,orgs}
                         set the organization type
   --owners OWNERS       comma-delimited list of owners
-  --keep-secrets-in-reports
-                        Keep plain text secrets in the aggregated reports. By default, secrets are
-                        obfuscated in the aggregated reports.
 ```
 
 1. Set your GitHub access token as an environment variable:
@@ -120,3 +121,9 @@ NOTE: That running gitleaks against a repo owned by a user is free. A repository
 
 * [gitleaks on Github](https://github.com/gitleaks/gitleaks)
 * [gitleaks Github Action](https://github.com/gitleaks/gitleaks-action)
+
+# Limitations and Known Issues
+
+* The script does not support multiple Github Personal Access Tokens yet. When pulling GHAS Secert Alerts for multiple orgs, this will only use one token.
+* Internal repositories are treated with a separate flag. If you have a mix of internal, private, and public repositories in an org, you will have incomplete results.
+* Matching does not happen with GHAS Secret Alerts. The API does not return secrets, line or file numbers in the alerts. As such, you cannot compare in an automated fashion to other tools run localhost.
