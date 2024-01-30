@@ -1,6 +1,9 @@
 import csv
 from fuzzywuzzy import fuzz
 import hashlib
+import sys
+
+csv.field_size_limit(sys.maxsize)
 
 # Result is deterministic, but not reversible
 def hash_secret(secret):

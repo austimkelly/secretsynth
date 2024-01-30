@@ -137,9 +137,14 @@ def fetch_repos(account_type, account, headers, page=1, per_page=100):
         repos_url = f'https://api.github.com/{account_type}/{account}/repos?page={page}&per_page={per_page}'
         if DRY_RUN:
             print(f"Calling {repos_url}...")
-        response = requests.get(repos_url, headers=headers)
 
+        response = requests.get(repos_url, headers=headers)
         data = response.json()
+        
+        if isinstance(data, dict) and "message" in data:
+            print(f"ERROR: Error fetching repo list from Github API:  {data['message']}")
+            break;
+
         repos.extend(data)
         if len(data) < per_page:
             break
@@ -148,7 +153,7 @@ def fetch_repos(account_type, account, headers, page=1, per_page=100):
 
 def do_gitleaks_scan(target, repo_name, repo_path):
     # Run gitleaks in each repository. See https://github.com/gitleaks/gitleaks?tab=readme-ov-file#usage
-    print(f"Running gitleaks on {repo_path}...")
+    print(f"Running gitleaks on {repo_path} ...")
     command = [
         "gitleaks",
         "detect",
@@ -177,9 +182,8 @@ def do_gitleaks_scan(target, repo_name, repo_path):
 # Calling trufflehog: tuffflehog filesystem {repo_path} --json
 def do_trufflehog_scan(target, repo_name, repo_path, report_filename):
     command = f"trufflehog filesystem {repo_path} --json"
-    if DRY_RUN:
-        print(f"Running truffleog on owner/repo: {target}/{repo_name}, with command: {command}")
-        return
+    
+    print(f"Running truffleog on owner/repo: {target}/{repo_name}, with command: {command}")
     
     result = subprocess.run(["trufflehog", "filesystem", repo_path, "--json"], capture_output=True, text=True)
     findings = result.stdout.splitlines()
@@ -273,18 +277,19 @@ with open(trufflehog_report_filename, 'w', newline='') as f:
     writer = csv.writer(f)
     writer.writerow(column_headers)
 
-for target in TARGETS:
+for target in TARGETS:  # each target is an org name (or user)
     # Get list of repositories for the TARGET
     url = f"https://api.github.com/{ORG_TYPE}/{target}/repos"
     print(f"Getting list of repositories from {url}...")
     repos = fetch_repos(ORG_TYPE, target, headers)
     
-    # Check if the response contains an error message
-    if "message" in repos and repos["message"] == "Not Found":
-        print("Error: Repos not found for owner (target). Double-check the TARGETS.")
+    # Check if the response is a dictionary containing an error message
+    if isinstance(repos, dict) and "message" in repos:
+        print(f"ERROR: Error on owner: {target} with message:  {repos['message']}")
+        break;
     elif repos is None or len(repos) == 0:
-        print(f"ERROR: No repositories found for {target}. Please check your personal access token and that you have the correct permission to read from")
-        exit(1)
+        print(f"ERROR: No repositories found for {target}. Please check your personal access token and that you have the correct permission to read from {target}")
+        continue;
     else:
         # Clone each repository and do a basic gitleaks and trufflehog scan
         for repo in repos:

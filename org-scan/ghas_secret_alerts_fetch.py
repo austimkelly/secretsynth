@@ -11,10 +11,17 @@ def fetch_repos(account_type, account, headers, page=1, per_page=100):
             print(f"Calling {repos_url}...")
         response = requests.get(repos_url, headers=headers)
         data = response.json()
+        
+        # Check if data is a dictionary containing an error message
+        if isinstance(data, dict) and "message" in data:
+            print(f"ERROR: Cannot execute API to fetch repos for GHAS secrets alert: {data['message']}")
+            break
+
         repos.extend(data)
         if len(data) < per_page:
             break
         page += 1
+    
     return repos
 
 def fetch_ghas_secret_scanning_alerts(owner_type, owners, headers, report_name):
