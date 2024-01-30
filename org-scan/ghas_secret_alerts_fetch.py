@@ -3,7 +3,7 @@ import csv
 
 verbose_logging = True
 
-def fetch_repos(account_type, account, headers, page=1, per_page=100):
+def fetch_repos(account_type, account, headers, logger=None, page=1, per_page=100):
     repos = []
     while True:
         repos_url = f'https://api.github.com/{account_type}/{account}/repos?page={page}&per_page={per_page}'
@@ -15,6 +15,8 @@ def fetch_repos(account_type, account, headers, page=1, per_page=100):
         # Check if data is a dictionary containing an error message
         if isinstance(data, dict) and "message" in data:
             print(f"ERROR: Cannot execute API to fetch repos for GHAS secrets alert: {data['message']}")
+            if logger:
+                logger.error(f"ERROR: Cannot execute API to fetch repos for GHAS secrets alert: {data['message']}") 
             break
 
         repos.extend(data)
@@ -24,7 +26,7 @@ def fetch_repos(account_type, account, headers, page=1, per_page=100):
     
     return repos
 
-def fetch_ghas_secret_scanning_alerts(owner_type, owners, headers, report_name):
+def fetch_ghas_secret_scanning_alerts(owner_type, owners, headers, report_name, logger=None):
     
     # Open the CSV file
     with open(report_name, 'w', newline='') as csvfile:
@@ -34,39 +36,41 @@ def fetch_ghas_secret_scanning_alerts(owner_type, owners, headers, report_name):
 
         writer.writeheader()
         for owner in owners:
-                repos = fetch_repos(owner_type, owner, headers)
-                # For each repo, get the secret scanning alerts
-                for repo in repos:
-                    alerts_response = requests.get(f'https://api.github.com/repos/{owner}/{repo["name"]}/secret-scanning/alerts', headers=headers)
-                    alerts = alerts_response.json()
+            repos = fetch_repos(owner_type, owner, headers, logger=logger)
+            # For each repo, get the secret scanning alerts
+            for repo in repos:
+                alerts_response = requests.get(f'https://api.github.com/repos/{owner}/{repo["name"]}/secret-scanning/alerts', headers=headers)
+                alerts = alerts_response.json()
 
-                    # print alerts json response for each repo
-                    if verbose_logging:
-                        print(f"Calling https://api.github.com/repos/{owner}/{repo['name']}/secret-scanning/alerts ...")
-                        print(alerts)
+                # print alerts json response for each repo
+                if verbose_logging:
+                    print(f"Calling https://api.github.com/repos/{owner}/{repo['name']}/secret-scanning/alerts ...")
+                    print(alerts)
 
-                    # Check if message contains {'message': 'Resource not accessible by personal access token'} 
-                    if isinstance(alerts, dict) and 'message' in alerts and alerts['message'] == 'Resource not accessible by personal access token':
-                        print(f"ERROR: Invalid Person Access Token. Cannot fetch security alerts for {repo['name']}: {alerts['message']}")
-                        continue
+                # Check if message contains {'message': 'Resource not accessible by personal access token'} 
+                if isinstance(alerts, dict) and 'message' in alerts and alerts['message'] == 'Resource not accessible by personal access token':
+                    print(f"ERROR: Invalid Person Access Token. Cannot fetch security alerts for {repo['name']}: {alerts['message']}")
+                    if logger:
+                        logger.error(f"ERROR: Invalid Github Person Access Token. Cannot fetch security alerts for {repo['name']}: {alerts['message']}")
+                    continue
 
-                    # If the response is a dictionary with a 'message' key, skip this iteration
-                    if isinstance(alerts, dict) and 'message' in alerts:
-                        print(f"Skipping {repo['name']}: {alerts['message']}")
-                        if 'message' in alerts and alerts['message'] == 'Secret scanning is disabled on this repository.':
-                            repos_without_secrets_scanning.append(repo)
-                        continue
+                # If the response is a dictionary with a 'message' key, skip this iteration
+                if isinstance(alerts, dict) and 'message' in alerts:
+                    print(f"Skipping {repo['name']}: {alerts['message']}")
+                    if 'message' in alerts and alerts['message'] == 'Secret scanning is disabled on this repository.':
+                        repos_without_secrets_scanning.append(repo)
+                    continue
 
-                    # Write each alert to the CSV file
-                    for alert in alerts:
-                        writer.writerow({
-                            'owner': owner,  # org or user
-                            'repo': repo['name'],
-                            'number': alert['number'],
-                            'rule': alert['secret_type'],  # Use 'secret_type' instead of 'rule'
-                            'state': alert['state'],
-                            'created_at': alert['created_at'],
-                            'html_url': alert['html_url'],
-                        })
+                # Write each alert to the CSV file
+                for alert in alerts:
+                    writer.writerow({
+                        'owner': owner,  # org or user
+                        'repo': repo['name'],
+                        'number': alert['number'],
+                        'rule': alert['secret_type'],  # Use 'secret_type' instead of 'rule'
+                        'state': alert['state'],
+                        'created_at': alert['created_at'],
+                        'html_url': alert['html_url'],
+                    })
 
-                    return repos_without_secrets_scanning
+                return repos_without_secrets_scanning

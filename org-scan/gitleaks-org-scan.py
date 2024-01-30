@@ -17,6 +17,7 @@ import sys
 # import all functions our helper modules
 from csv_coalesce import *
 from ghas_secret_alerts_fetch import *
+from logger import *
 
 # Add command line arguments
 parser = argparse.ArgumentParser()
@@ -47,33 +48,23 @@ GITLEAKS_REPORTS_DIR = "./gitleaks_reports"  # This is the directory where the g
 
 timestamp = datetime.now().strftime('%Y%m%d%H%M')
 REPORTS_DIR = f"./reports/reports_{timestamp}"  # This is where aggregated results are saved
+ERROR_LOG_FILE = f"./reports/reports_{timestamp}/error_log_{timestamp}.log"  # This is where error messages are saved
+checkout_dir = "./checkout"
+headers = {"Authorization": f"token {TOKEN}"}
 
 def check_commands():
     commands = ["gitleaks", "git", "trufflehog"]
     for command in commands:
         if shutil.which(command) is None:
-            print(f"Error: {command} is not accessible. Please ensure it is installed and available on your system's PATH.")
+            print(f"ERROR: {command} is not accessible.")
+            LOGGER.error(f"ERROR: {command} is not accessible. Please ensure it is installed and available on your system's PATH.")
             sys.exit(1)
 
     # error if TOKEN is not set
     if TOKEN is None:
-        print("Error: GITHUB_ACCESS_TOKEN environment variable not set")
+        print("ERROR: GITHUB_ACCESS_TOKEN environment variable not set")
+        LOGGER.error("ERROR: GITHUB_ACCESS_TOKEN environment variable not set")
         exit(1)
-
-check_commands()
-
-# If the --clean argument is present, delete the code and temp results directories
-if args.clean:
-    confirm = input("Are you sure you want to delete the directories ./checkouts and ./reports? (y/n): ")
-    if confirm.lower() == "y":
-        if DRY_RUN:
-            print("Deleting directories ./checkouts and ./reports...")
-        else:
-            shutil.rmtree(CHECKOUT_DIR, ignore_errors=True)
-            shutil.rmtree(GITLEAKS_REPORTS_DIR, ignore_errors=True)
-    else:
-        print("Operation cancelled.")
-    exit(0)
 
 # Function to concatenate CSV files
 def concatenate_gitleaks_csv_files(gitleaks_report_filename):
@@ -103,6 +94,7 @@ def concatenate_gitleaks_csv_files(gitleaks_report_filename):
             df = pd.read_csv(csv_file)
         except pd.errors.ParserError as e:
             print(f"Error reading CSV file: {csv_file}")
+            LOGGER.error(f"Error reading CSV file: {csv_file}")
             print(e)
             continue
         # Prepend a new column with the repository name
@@ -117,6 +109,7 @@ def concatenate_gitleaks_csv_files(gitleaks_report_filename):
             df_list.append(df)
         except pd.errors.EmptyDataError:
             print(f"Error: Empty CSV file: {csv_file}")
+            LOGGER.error(f"Error: Empty CSV file: {csv_file}")
 
     concatenated_df = pd.DataFrame()
 
@@ -149,6 +142,7 @@ def fetch_repos(account_type, account, headers, internal_type=False, page=1, per
         
         if isinstance(data, dict) and "message" in data:
             print(f"ERROR: Error fetching repo list from Github API:  {data['message']}")
+            LOGGER.error(f"ERROR: Error fetching repo list from Github API:  {data['message']}")
             break;
 
         repos.extend(data)
@@ -178,10 +172,10 @@ def do_gitleaks_scan(target, repo_name, repo_path):
     if not DRY_RUN:
         result = subprocess.run(command, capture_output=True, text=True, check=False)
         print(result.stdout)
-        print(result.stderr)
+        #print(result.stderr)
 
         if result.returncode != 0:
-            print(f"Error: gitleaks command returned non-zero exit status {result.returncode}")
+            print(f"gitleaks command returned non-zero exit status {result.returncode}")
 
 # target is the owner of the repository
 # repo_name is the name of the repository
@@ -256,7 +250,7 @@ def output_to_html(metrics, merged_report_name, ghas_secret_alerts_filename, mat
 
 def clone_repo(repo, repo_checkout_path):
     # Check if the directory already exists
-    print(f"Checking if repo {repo_checkout_path} exists or clone if not.")
+    #print(f"Checking if repo {repo_checkout_path} exists or clone if not.")
     if os.path.exists(repo_checkout_path):
         print(f"Repository {repo_checkout_path} already exists. Skipping cloning.")
     else:
@@ -273,9 +267,21 @@ if not os.path.exists(GITLEAKS_REPORTS_DIR):
 if not os.path.exists(REPORTS_DIR):
     os.makedirs(REPORTS_DIR)
 
-checkout_dir = "./checkout"
+LOGGER = setup_error_logger(ERROR_LOG_FILE)
+check_commands()
 
-headers = {"Authorization": f"token {TOKEN}"}
+# If the --clean argument is present, delete the code and temp results directories
+if args.clean:
+    confirm = input("Are you sure you want to delete the directories ./checkouts and ./reports? (y/n): ")
+    if confirm.lower() == "y":
+        if DRY_RUN:
+            print("Deleting directories ./checkouts and ./reports...")
+        else:
+            shutil.rmtree(CHECKOUT_DIR, ignore_errors=True)
+            shutil.rmtree(GITLEAKS_REPORTS_DIR, ignore_errors=True)
+    else:
+        print("Operation cancelled.")
+    exit(0)
 
 # Column headers for trufflehog report
 column_headers = ['target', 'repo_name', 'file', 'line', 'source_id', 'source_type', 'source_name', 'detector_type', 'detector_name', 'decoder_name', 'verified', 'raw', 'raw_v2', 'redacted']
@@ -294,9 +300,11 @@ for owner in OWNERS:
     # Check if the response is a dictionary containing an error message
     if isinstance(repos, dict) and "message" in repos:
         print(f"ERROR: Error on owner: {owner} with message:  {repos['message']}")
+        LOGGER.error(f"ERROR: Error on owner: {owner} with message:  {repos['message']}")
         break;
     elif repos is None or len(repos) == 0:
         print(f"ERROR: No repositories found for {owner}. Please check your Github personal access token and that you have the correct permission to read from the org: {owner}")
+        LOGGER.error(f"ERROR: No repositories found for {owner}. Please check your Github personal access token and that you have the correct permission to read from the org: {owner}")
         continue;
     else:
         # Clone each repository and do a basic gitleaks and trufflehog scan
@@ -313,6 +321,7 @@ for owner in OWNERS:
 # Concatenate all CSV files into a single CSV file
 if not os.path.exists(CHECKOUT_DIR):    # Skip if ./checkout does not exist
     print("ERROR: The ./checkout folder does not exist. Check your git configuration and try again. No reports will be generated.")
+    LOGGER.error("ERROR: The ./checkout folder does not exist. Check your git configuration and try again. No reports will be generated.")  
     exit(1)
 
 print("Concatenating gitleaks report CSV files...")
@@ -320,7 +329,7 @@ gitleaks_merged_report_filename = f"{REPORTS_DIR}/gitleaks_report_merged_filenam
 concatenate_gitleaks_csv_files(gitleaks_merged_report_filename)
 
 ghas_secret_alerts_filename = f"{REPORTS_DIR}/ghas_secret_alerts_{timestamp}.csv"
-repos_without_ghas_secrets_enabled = fetch_ghas_secret_scanning_alerts(ORG_TYPE, OWNERS, headers, ghas_secret_alerts_filename)
+repos_without_ghas_secrets_enabled = fetch_ghas_secret_scanning_alerts(ORG_TYPE, OWNERS, headers, ghas_secret_alerts_filename, LOGGER)
 print("Secrets scanning execution completed.")
 
 print("Creating merge and match reports.")
