@@ -225,13 +225,20 @@ def analyze_merged_results(merged_results, repo_names_no_ghas_secrets_enabled):
 
     return metrics
 
-def output_to_html(metrics, merged_report_name, ghas_secret_alerts_filename, matches_report_name, report_path):
+def output_to_html(metrics, 
+                   merged_report_name, 
+                   ghas_secret_alerts_filename, 
+                   matches_report_name,
+                   error_logfile, 
+                   report_path 
+                   ):
     # Create a DataFrame with links to the raw report files
     report_links = pd.DataFrame({
-        'Report Name': ['Merged Report', 'GHAS Secret Alerts', 'Matches Report'],
+        'Report Name': ['Merged Report', 'GHAS Secret Alerts', 'Matches Report', "Error Log"],
         'CSV Link': [f'<a href="{merged_report_name}">{merged_report_name}</a>',
                      f'<a href="{ghas_secret_alerts_filename}">{ghas_secret_alerts_filename}</a>',
-                     f'<a href="{matches_report_name}">{matches_report_name}</a>']
+                     f'<a href="{matches_report_name}">{matches_report_name}</a>',
+                     f'<a href="{error_logfile}">{error_logfile}</a>']
     })
 
     # Convert the DataFrames to HTML
@@ -357,4 +364,8 @@ if not KEEP_SECRETS:
 # Aggregate report results
 metrics = analyze_merged_results(merged_report_name, repos_without_ghas_secrets_enabled)
 html_report_path = f"{REPORTS_DIR}/report_{timestamp}.html"
-output_to_html(metrics, f"../../{merged_report_name}", f"../../{ghas_secret_alerts_filename}", f"../../{matches_report_name}", html_report_path)
+output_to_html(metrics, f"../../{merged_report_name}", 
+               f"../../{ghas_secret_alerts_filename}", 
+               f"../../{matches_report_name}", 
+               f"../../{ERROR_LOG_FILE}",
+               html_report_path)
