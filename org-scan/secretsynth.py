@@ -175,10 +175,14 @@ def fetch_repos(account_type, account, headers, internal_type=False, page=1, per
 
     return repos
 
-
 def count_lines_in_file(file_path):
-    with open(file_path, 'r') as file:
-        return sum(1 for line in file)
+    _, file_extension = os.path.splitext(file_path)
+    if file_extension == '.csv':
+        with open(file_path, 'r') as file:
+            return sum(1 for row in csv.reader(file))
+    else:
+        with open(file_path, 'r') as file:
+            return sum(1 for line in file)
 
 def analyze_merged_results(merged_results, matches_results, error_file, repo_names_no_ghas_secrets_enabled=None):
     df = pd.read_csv(merged_results)

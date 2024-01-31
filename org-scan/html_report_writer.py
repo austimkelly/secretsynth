@@ -1,5 +1,18 @@
 import pandas as pd
 
+def get_table_style(table_links):
+    # Style the DataFrame
+    styled_table_links =  table_links.style.set_table_styles([
+        {'selector': 'table', 'props': [('border', '1px solid black')]},
+        {'selector': 'tr:nth-of-type(odd)', 'props': [('background', '#eee')]},
+        {'selector': 'tr:nth-of-type(even)', 'props': [('background', '#fff')]},
+        {'selector': 'th', 'props': [('background', '#606060'), ('color', 'white'), ('font-weight', 'bold')]}
+    ])
+
+    # Hide the index
+    styled_table_links.hide_index()
+    return styled_table_links
+
 def output_to_html(metrics, 
                    merged_report_name, 
                    ghas_secret_alerts_filename, 
@@ -7,18 +20,26 @@ def output_to_html(metrics,
                    error_logfile, 
                    report_path 
                    ):
+    
+
+    # Define descriptions for Report Links
+    descriptions = ['The merged report contains the row-by-row of all secrets from all secret scanners. The merged reports create a few common fields to make it easier to aggregate and filter across multiple secret scanning solutions.', 
+                    'GHAS alerts are the alerts that are pulled down from the GitHub Advanced Security (GHAS) API. GHAS secret alerts to do not contain secret, line, or file information from the API.', 
+                    'These are secrets that have at least one match among the other tools.', 
+                    'Any processing errors are logged here. If the total errors is > 0, then your results may be incomplete.']
+    file_paths = [merged_report_name, ghas_secret_alerts_filename, matches_report_name, error_logfile]
     # Create a DataFrame with links to the raw report files
     report_links = pd.DataFrame({
         'Report Name': ['Merged Report', 'GHAS Secret Alerts', 'Matches Report', "Error Log"],
-        'CSV Link': [f'<a href="{merged_report_name}">{merged_report_name}</a>',
-                     f'<a href="{ghas_secret_alerts_filename}">{ghas_secret_alerts_filename}</a>',
-                     f'<a href="{matches_report_name}">{matches_report_name}</a>',
-                     f'<a href="{error_logfile}">{error_logfile}</a>']
+        'Description': descriptions,
+        'CSV Link': [f'<a href="{file_path}">{file_path}</a>' for file_path in file_paths]
     })
 
     # Convert the DataFrames to HTML
-    metrics_html = metrics.to_html()
-    report_links_html = report_links.to_html(escape=False)
+    metrics_html = get_table_style(metrics).render(index=False)
+    #report_links_html = report_links.to_html(escape=False)
+    # Convert the styled DataFrame to HTML
+    report_links_html = get_table_style(report_links).render(index=False)
 
     # Write the HTML to a file
     with open(report_path, 'w') as f:

@@ -31,10 +31,11 @@ def merge_csv_all_tools(keep_secrets,
                         ghas_alerts_file,
                         np_report_filename, 
                         output_file):
-    unified_headers = ['source', 'owner', 'repo_name', 'file', 'line', 'secret', 
+    unified_headers = ['source', 'owner', 'repo_name', 'file', 'line', 'secret', 'match', 'detector',
                         'th_source_id', 'th_source_type', 'th_source_name', 'th_detector_type', 'th_detector_name', 'th_decoder_name', 'th_verified', 'th_raw', 'th_raw_v2', 'th_redacted', 
                         'gl_owner', 'gl_commit', 'gl_symlink_file', 'gl_secret', 'gl_match', 'gl_start_line', 'gl_end_line', 'gl_start_column', 'gl_end_column', 'gl_author', 'gl_message', 'gl_date', 'gl_email', 'gl_fingerprint', 'gl_tags',
-                        'ghas_number', 'ghas_rule', 'ghas_state', 'ghas_created_at', 'ghas_html_url'
+                        'ghas_number', 'ghas_rule', 'ghas_state', 'ghas_created_at', 'ghas_html_url',
+                        'np_provenance', 'np_blob_id', 'np_capture_group_index', 'np_match_content', 'np_blob_metadata_id', 'np_blob_metadata_num_bytes', 'np_blob_metadata_mime_essence', 'np_blob_metadata_charset', 'np_location_offset_span_start', 'np_location_offset_span_end', 'np_location_source_span_start_line', 'np_location_source_span_start_column', 'np_location_source_span_end_line', 'np_location_source_span_end_column', 'np_snippet_before', 'np_snippet_after'
                        ]
 
     with open(output_file, 'w', newline='') as f_out:
@@ -53,8 +54,11 @@ def merge_csv_all_tools(keep_secrets,
                     row['line'] = row.pop('line', '')
                     if not keep_secrets:
                         row['secret'] = hash_secret(row.pop('raw', ''))
+                        row['match'] = hash_secret(row.pop('raw_v2', ''))
                     else:
                         row['secret'] = row.pop('raw', '')
+                        row['match'] = row.pop('raw_v2', '') 
+                    row['detector'] = row.pop('detector_name', '')
                     # only in trufflehog
                     row['th_source_id'] = row.pop('source_id', '')
                     row['th_source_type'] = row.pop('source_type', '')
@@ -65,11 +69,12 @@ def merge_csv_all_tools(keep_secrets,
                     row['th_verified'] = row.pop('verified', '')
                     if not keep_secrets:
                         row['th_raw'] = hash_secret(row.pop('raw', ''))
-                        row['th_raw_v2'] = hash_secret(row.pop('raw', ''))
+                        row['th_raw_v2'] = hash_secret(row.pop('raw_v2', ''))
+                        row['th_redacted'] = hash_secret(row.pop('redacted', ''))
                     else:
                         row['th_raw'] = row.pop('raw', '')
                         row['th_raw_v2'] = row.pop('raw_v2', '')    
-                    row['th_redacted'] = row.pop('redacted', '')
+                        row['th_redacted'] = row.pop('redacted', '')
                     writer.writerow(row)
 
         if os.path.exists(gitleaks_file):
@@ -83,9 +88,12 @@ def merge_csv_all_tools(keep_secrets,
                     row['file'] = row.pop('File', '')
                     row['line'] = row.pop('StartLine', '')
                     if not keep_secrets:
-                        row['secret'] = hash_secret(row.pop('Match', ''))
+                        row['secret'] = hash_secret(row.pop('Secret', ''))
+                        row['match'] = hash_secret(row.pop('Match', ''))
                     else:
-                        row['secret'] = row.pop('raw', '')
+                        row['secret'] = row.pop('Secret', '')
+                        row['match'] = row.pop('Match', '')
+                    row['detector'] = row.pop('Fingerprint', '')
                     # only in gitleaks
                     row['gl_endline'] = row.pop('EndLine', '')
                     # write these to row Commit,File,SymlinkFile,Secret,Match,StartLine,EndLine,StartColumn,EndColumn,Author,Message,Date,Email,Fingerprint,Tags
@@ -122,6 +130,8 @@ def merge_csv_all_tools(keep_secrets,
                     row['file'] = row.pop('html_url', '')
                     row['line'] = row.pop('unavailable - see alert in Github', '')
                     row['secret'] = row.pop('unavailable - see alert in Github', '')
+                    row['match'] = row.pop('unavailable - see alert in Github', '')
+                    row['detector'] = row.pop('rule', '')
                     # only in ghas
                     row['ghas_number'] = row.pop('number', '')
                     row['ghas_rule'] = row.pop('rule', '')
@@ -143,9 +153,12 @@ def merge_csv_all_tools(keep_secrets,
                     row['file'] = row.pop('TBD', '')
                     row['line'] = row.pop('location.source_span.start.line', '')
                     if not keep_secrets:
-                        row['secret'] = hash_secret(row.pop('snippet.matching', ''))
+                        row['match'] = hash_secret(row.pop('snippet.matching', ''))
+                        row['secret'] = hash_secret(row.pop('match_content', ''))
                     else:
-                        row['secret'] = row.pop('snippet.matching', '')
+                        row['match'] = row.pop('snippet.matching', '')
+                        row['secret'] = row.pop('match_content', '')
+                    row['detector'] = row.pop('rule_name', '')
                     # only in noseyparker
                     row['np_provenance'] = row.pop('provenance', '')
                     row['np_rule'] = row.pop('rule_name', '')
