@@ -2,6 +2,7 @@
 .DS_Store
 reports/
 checkout/
+np_datastore/
 *.csv
 
 # Byte-compiled / optimized / DLL files
