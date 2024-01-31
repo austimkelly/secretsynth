@@ -30,8 +30,18 @@ parser.add_argument("--keep-secrets-in-reports", action="store_true",
 parser.add_argument("--repos-internal-type", action="store_true", help="If your repositories are internal, this flag will be added when fetching repositories from Github.")
 parser.add_argument("--org-type", choices=["users", "orgs"], help="set the organization type")
 parser.add_argument("--owners", type=str, help="comma-delimited list of owners")
+parser.add_argument("--skip-noseyparker", action="store_true", help="Skip the Noseyparker scan")
+parser.add_argument("--skip-trufflehog", action="store_true", help="Skip the TruffleHog scan")
+parser.add_argument("--skip-ghas", action="store_true", help="Skip the GitHub Advanced Security alerts scan")
+parser.add_argument("--skip-gitleaks", action="store_true", help="Skip the Gitleaks scan")
+parser.add_argument("--open-report-in-browser", action="store_true", help="Open the report in a browser after it's generated")
 
 args = parser.parse_args()
+
+SKIP_NOSEYPARKER = args.skip_noseyparker
+SKIP_TRUFFLEHOG = args.skip_trufflehog
+SKIP_GHAS = args.skip_ghas
+SKIP_GITLEAKS = args.skip_gitleaks
 
 # If --clean is not used, --org-type and --owners are required
 if not args.clean and (args.org_type is None or args.owners is None):
@@ -40,12 +50,19 @@ if not args.clean and (args.org_type is None or args.owners is None):
 DRY_RUN = args.dry_run  # Set to True if --dry-run is present, False otherwise
 print(f"DRY_RUN={DRY_RUN}")
 
+print(f"SKIP_NOSEYPARKER={SKIP_NOSEYPARKER}")
+print(f"SKIP_TRUFFLEHOG={SKIP_TRUFFLEHOG}")
+print(f"SKIP_GHAS={SKIP_GHAS}")
+print(f"SKIP_GITLEAKS={SKIP_GITLEAKS}")
+
 timestamp = datetime.now().strftime('%Y%m%d%H%M')
 KEEP_SECRETS = args.keep_secrets_in_reports
 print(f"KEEP_SECRETS={KEEP_SECRETS}")
 INTERNAL_REPOS_FLAG=args.repos_internal_type
 ORG_TYPE = args.org_type if args.org_type else None # This can be "users" or "orgs"
 OWNERS = args.owners.split(",") if args.owners else None  # Split the value of --owners into a list if present, None otherwise
+OPEN_REPORT_IN_BROWSER = args.open_report_in_browser
+
 TOKEN = os.getenv('GITHUB_ACCESS_TOKEN')
 CHECKOUT_DIR = "./checkout"  # This is the directory where the repositories will be cloned
 GITLEAKS_REPORTS_DIR = "./gitleaks_reports"  # This is the directory where the gitleaks reports (per repo) will be saved
@@ -181,7 +198,7 @@ def do_gitleaks_scan(target, repo_name, repo_path):
             print(f"gitleaks command returned non-zero exit status {result.returncode}")
 
 
-def analyze_merged_results(merged_results, repo_names_no_ghas_secrets_enabled):
+def analyze_merged_results(merged_results, repo_names_no_ghas_secrets_enabled=None):
     df = pd.read_csv(merged_results)
 
     # Calculate the metrics
@@ -315,13 +332,17 @@ for owner in OWNERS:
 
             clone_repo(repo, repo_checkout_path)
 
-            do_gitleaks_scan(owner, repo_bare_name, repo_checkout_path)
-            
-            do_trufflehog_scan(owner, repo_bare_name, repo_checkout_path, trufflehog_report_filename, DRY_RUN, LOGGER)
+            if not SKIP_GHAS:
+                do_gitleaks_scan(owner, repo_bare_name, repo_checkout_path)
 
-            do_noseyparker_scan(owner, repo_bare_name, repo_checkout_path, NOSEYPARKER_DATASTORE_DIR, DRY_RUN, LOGGER)
+            if not SKIP_TRUFFLEHOG:        
+                do_trufflehog_scan(owner, repo_bare_name, repo_checkout_path, trufflehog_report_filename, DRY_RUN, LOGGER)
 
-    run_noseyparker_report(owner, NOSEYPARKER_DATASTORE_DIR, noseyparker_report_filename, LOGGER)
+            if not SKIP_NOSEYPARKER:
+                do_noseyparker_scan(owner, repo_bare_name, repo_checkout_path, NOSEYPARKER_DATASTORE_DIR, DRY_RUN, LOGGER)
+
+    if not SKIP_NOSEYPARKER:
+        run_noseyparker_report(owner, NOSEYPARKER_DATASTORE_DIR, noseyparker_report_filename, LOGGER)
 
 # Concatenate all CSV files into a single CSV file
 if not os.path.exists(CHECKOUT_DIR) and not DRY_RUN:    # Skip if ./checkout does not exist
@@ -329,24 +350,27 @@ if not os.path.exists(CHECKOUT_DIR) and not DRY_RUN:    # Skip if ./checkout doe
     LOGGER.error("ERROR: The ./checkout folder does not exist. Check your git configuration and try again. No reports will be generated.")  
     exit(1)
 
-print("Concatenating gitleaks report CSV files...")
 gitleaks_merged_report_filename = f"{REPORTS_DIR}/gitleaks_report_merged_filename_{timestamp}.csv"
-concatenate_gitleaks_csv_files(gitleaks_merged_report_filename)
+if not SKIP_GITLEAKS:
+    print("Concatenating gitleaks report CSV files...")
+    concatenate_gitleaks_csv_files(gitleaks_merged_report_filename)
 
 ghas_secret_alerts_filename = f"{REPORTS_DIR}/ghas_secret_alerts_{timestamp}.csv"
-repos_without_ghas_secrets_enabled = fetch_ghas_secret_scanning_alerts(ORG_TYPE, OWNERS, headers, ghas_secret_alerts_filename, DRY_RUN, LOGGER)
+if not SKIP_GHAS:
+    repos_without_ghas_secrets_enabled = fetch_ghas_secret_scanning_alerts(ORG_TYPE, OWNERS, headers, ghas_secret_alerts_filename, DRY_RUN, LOGGER)
+else:
+    repos_without_ghas_secrets_enabled = None
+        
 print("Secrets scanning execution completed.")
-
 print("Creating merge and match reports.")
 
 if not DRY_RUN:
     # Create a unified reports of all secrets 
     merged_report_name = f"{REPORTS_DIR}/merged_scan_results_report_{timestamp}.csv"
-    merge_csv_all_tools(trufflehog_report_filename, 
+    merge_csv_all_tools(KEEP_SECRETS, trufflehog_report_filename, 
                     gitleaks_merged_report_filename,  
                     ghas_secret_alerts_filename,
-                    noseyparker_report_filename,
-                    KEEP_SECRETS, 
+                    noseyparker_report_filename, 
                     merged_report_name)
 
     # Create another report that is a subset of the merged report, 
@@ -371,6 +395,7 @@ if not DRY_RUN:
                 f"../../{ERROR_LOG_FILE}",
                 html_report_path)
     
-    # open the report in the default browser
-    absolute_path = os.path.abspath(html_report_path)
-    webbrowser.open(f"file://{absolute_path}", new=2)
+    if OPEN_REPORT_IN_BROWSER:
+        # open the report in the default browser
+        absolute_path = os.path.abspath(html_report_path)
+        webbrowser.open(f"file://{absolute_path}", new=2)

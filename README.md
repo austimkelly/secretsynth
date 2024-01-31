@@ -57,9 +57,15 @@ optional arguments:
                         Keep plain text secrets in the aggregated reports. By default the tool will hash secrets for final reports if this flag is missing.
   --repos-internal-type
                         If your repositories are internal, this flag will be added when fetching repositories from Github.
+  --open-report-in-browser
+                        Open the report in a browser after it's generated
   --org-type {users,orgs}
                         set the organization type
   --owners OWNERS       comma-delimited list of owners
+  --skip-noseyparker    Skip the Noseyparker scan
+  --skip-trufflehog     Skip the TruffleHog scan
+  --skip-ghas           Skip the GitHub Advanced Security scan
+  --skip-gitleaks       Skip the Gitleaks scan
 ```
 
 1. Set your GitHub access token as an environment variable:
