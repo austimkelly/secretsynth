@@ -3,7 +3,7 @@ import os
 
 def setup_error_logger(error_logfile):
     # Create a logger
-    logger = logging.getLogger('gitleaks-utils-logger')
+    logger = logging.getLogger('secretsynth-logger')
 
     # Set the level to ERROR. This means the logger will handle ERROR and CRITICAL messages
     logger.setLevel(logging.ERROR)
