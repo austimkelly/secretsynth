@@ -211,7 +211,7 @@ def analyze_merged_results(merged_results, matches_results, error_file, repo_nam
 
     # Create a DataFrame with the metrics
     metrics = pd.DataFrame({
-        'Metric': ['Time of Report', 'Arguments', 'Owners', 'Scanning Source Tools', 'Total Repos on Disk', 'Total Repos with Secrets', 'Total Secrets by Source', 'Total Secrets (all tools)', 'Repos without GHAS Secrets Scanning Enabled', 'Total Distinct Secrets', 'Secret Matches Count', 'Total Errors in Log'],
+        'Metric': ['Time of Report', 'Arguments', 'Owners', 'Scanning Source Tools', 'Total Repos on Disk', 'Total Repos with Secrets', 'Total Secrets by Source', 'Total Secrets (all tools)', 'Repos without GHAS Secrets Scanning Enabled', 'Total Distinct Secrets', 'Secret Matches Count (Experimental)', 'Total Errors in Log'],
         'Value': [now, cmd_args, owners, distinct_sources, total_repos_on_disk, total_repos_with_secrets, total_secrets_by_source, total_secrets, repos_without_ghas_secrets_scanning, total_distinct_secrets, matches_line_count, err_line_count]
     })
 

@@ -26,7 +26,7 @@ def output_to_html(metrics,
     # Define descriptions for Report Links
     descriptions = ['The merged report contains the row-by-row of all secrets from all secret scanners. The merged reports create a few common fields to make it easier to aggregate and filter across multiple secret scanning solutions.', 
                     'GHAS alerts are the alerts that are pulled down from the GitHub Advanced Security (GHAS) API. GHAS secret alerts to do not contain secret, line, or file information from the API.', 
-                    'These are secrets that have at least one match among the other tools.', 
+                    'Experimental. These are secrets that have at least one match among the other tools. Consider these results experimental only.', 
                     'Any processing errors are logged here. If the total errors is > 0, then your results may be incomplete.']
     file_paths = [merged_report_name, ghas_secret_alerts_filename, matches_report_name, error_logfile]
     # Create a DataFrame with links to the raw report files
@@ -42,16 +42,35 @@ def output_to_html(metrics,
     detector_metrics_html = get_table_style(detector_metrics).render(index=False)
     report_links_html = get_table_style(report_links).render(index=False)
 
+    # Define the summary text for each section
+    about_secretsynth_text = '<p>Secret Synth is a meta-secret scanner solution that wraps popular source code secret scanning solutions such as gitleaks, Nosey Parker, and Trufflehog.</p>'
+    disclaimer_text = '<p>By default, aggregated reports hash secret values. While this can be overridden, care should be taken how results are shared. Additionally, there may be known and unknown bugs in the calculations of this tool. You are expected to do your own due diligence to check the accuracy of these findings.</p>'
+    license_text = '<p>Secret Synth is distributed under MIT License. Source code for Secret Synth can be found <a href="https://github.com/austimkelly/gitleaks-utils">here</a></p>'
+    top_level_summary_text = '<p>Here is an overview of the secret scan results. Check the tools used and the error count to see if there may have been problems with the scan.</p>'
+    repo_level_summary_text = '<p>This section provides detailed metrics for each repository scanned. This just gives you an idea of the quantity of secrets discovered by each tool and the total number of secrets in the entire repository.</p>'
+    detector_summary_text = '<p>Every tool emits a detector type. The table below just gives you an aggregated view of the types of secrets that have been found and the magnitude of each. This does not indicate which tool found the secret.</p>'
+    report_links_summary_text = '<p>Here you can find the raw data of all the secrets in the merged_scan_results_report. The first few columns represent the generic information found among all tools. Any fields starting with np_, gl_, gh_, or th_ are specifics to those tools.</p>'
+
     # Write the HTML to a file
     with open(report_path, 'w') as f:
+        f.write('<h1>About Secret Synth</h1>')
+        f.write(about_secretsynth_text)
+        f.write('<h2>Disclaimer</h2>')
+        f.write(disclaimer_text)
         f.write('<h1>Top Level Summary</h1>')
+        f.write(top_level_summary_text)
         f.write(metrics_html)
         f.write('<h1>Repo-Level Metrics</h1>')
+        f.write(repo_level_summary_text)
         f.write(repo_metrics_html)
         f.write('<h1>Detector Metrics</h1>')
+        f.write(detector_summary_text)
         f.write(detector_metrics_html)
         f.write('<h1>Report Links</h1>')
+        f.write(report_links_summary_text)
         f.write(report_links_html)
+        f.write('<h1>License and Source Code</h1>')
+        f.write(license_text)
 
     # Print the absolute path of the HTML file
     print(f"HTML file written to: {report_path}")
