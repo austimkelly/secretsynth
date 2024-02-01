@@ -29,7 +29,7 @@ def merge_csv_all_tools(keep_secrets,
                         gitleaks_file, 
                         ghas_alerts_file,
                         np_report_filename, 
-                        output_file):
+                        output_file, logger=None):
     unified_headers = ['source', 'owner', 'repo_name', 'file', 'line', 'secret', 'match', 'detector',
                         'th_source_id', 'th_source_type', 'th_source_name', 'th_detector_type', 'th_detector_name', 'th_decoder_name', 'th_verified', 'th_raw', 'th_raw_v2', 'th_redacted', 
                         'gl_owner', 'gl_commit', 'gl_symlink_file', 'gl_secret', 'gl_match', 'gl_start_line', 'gl_end_line', 'gl_start_column', 'gl_end_column', 'gl_author', 'gl_message', 'gl_date', 'gl_email', 'gl_fingerprint', 'gl_tags',
@@ -142,46 +142,52 @@ def merge_csv_all_tools(keep_secrets,
         
         if os.path.exists(np_report_filename):
             # NoseyParker CSV
-            with open(np_report_filename, 'r') as f_in:
-                reader = csv.DictReader(f_in)
-                for row in reader:
-                    # Schema: provenance,blob_id,capture_group_index,match_content,rule_name,blob_metadata.id,blob_metadata.num_bytes,blob_metadata.mime_essence,blob_metadata.charset,location.offset_span.start,location.offset_span.end,location.source_span.start.line,location.source_span.start.column,location.source_span.end.line,location.source_span.end.column,snippet.before,snippet.matching,snippet.after,owner
-                    row['source'] = 'noseyparker'
-                    row['owner'] = row.pop('owner', '')
-                    row['repo_name'] = row.pop('repo_path', '')
-                    row['file'] = row.pop('blob_path', '')
-                    row['line'] = row.pop('location.source_span.start.line', '')
-                    if not keep_secrets:
-                        row['match'] = hash_secret(row.pop('snippet.matching', ''))
-                        row['secret'] = hash_secret(row.pop('match_content', ''))
-                    else:
-                        row['match'] = row.pop('snippet.matching', '')
-                        row['secret'] = row.pop('match_content', '')
-                    row['detector'] = row.pop('rule_name', '')
-                    # only in noseyparker
-                    row['np_provenance'] = row.pop('provenance', '')
-                    row['np_rule'] = row.pop('rule_name', '')
-                    row['np_blob_id'] = row.pop('blob_id', '')
-                    row['np_capture_group_index'] = row.pop('capture_group_index', '')
-                    row['np_match_content'] = row.pop('match_content', '')
-                    row['np_blob_metadata_id'] = row.pop('blob_metadata.id', '')
-                    row['np_blob_metadata_num_bytes'] = row.pop('blob_metadata.num_bytes', '')
-                    row['np_blob_metadata_mime_essence'] = row.pop('blob_metadata.mime_essence', '')
-                    row['np_blob_metadata_charset'] = row.pop('blob_metadata.charset', '')
-                    row['np_location_offset_span_start'] = row.pop('location.offset_span.start', '')
-                    row['np_location_offset_span_end'] = row.pop('location.offset_span.end', '')
-                    row['np_location_source_span_start_line'] = row.pop('location.source_span.start.line', '')
-                    row['np_location_source_span_start_column'] = row.pop('location.source_span.start.column', '')
-                    row['np_location_source_span_end_line'] = row.pop('location.source_span.end.line', '')
-                    row['np_location_source_span_end_column'] = row.pop('location.source_span.end.column', '')
-                    if not keep_secrets:
-                        row['np_snippet_before'] = hash_secret(row.pop('snippet.before', ''))
-                        row['np_snippet_after'] = hash_secret(row.pop('snippet.after', ''))
-                    else: # keep secrets
-                        row['np_snippet_before'] = row.pop('snippet.before', '')
-                        row['np_snippet_after'] = row.pop('snippet.after', '')
+            try:
+                with open(np_report_filename, 'rb') as f_in:
+                    data = f_in.read().replace(b'\x00', b'') # guard against null values
+                    reader = csv.DictReader(data.decode('utf-8').splitlines())
+                    for row in reader:
+                        # Schema: provenance,blob_id,capture_group_index,match_content,rule_name,blob_metadata.id,blob_metadata.num_bytes,blob_metadata.mime_essence,blob_metadata.charset,location.offset_span.start,location.offset_span.end,location.source_span.start.line,location.source_span.start.column,location.source_span.end.line,location.source_span.end.column,snippet.before,snippet.matching,snippet.after,owner
+                        row['source'] = 'noseyparker'
+                        row['owner'] = row.pop('owner', '')
+                        row['repo_name'] = row.pop('repo_path', '')
+                        row['file'] = row.pop('blob_path', '')
+                        row['line'] = row.pop('location.source_span.start.line', '')
+                        if not keep_secrets:
+                            row['match'] = hash_secret(row.pop('snippet.matching', ''))
+                            row['secret'] = hash_secret(row.pop('match_content', ''))
+                        else:
+                            row['match'] = row.pop('snippet.matching', '')
+                            row['secret'] = row.pop('match_content', '')
+                        row['detector'] = row.pop('rule_name', '')
+                        # only in noseyparker
+                        row['np_provenance'] = row.pop('provenance', '')
+                        row['np_rule'] = row.pop('rule_name', '')
+                        row['np_blob_id'] = row.pop('blob_id', '')
+                        row['np_capture_group_index'] = row.pop('capture_group_index', '')
+                        row['np_match_content'] = row.pop('match_content', '')
+                        row['np_blob_metadata_id'] = row.pop('blob_metadata.id', '')
+                        row['np_blob_metadata_num_bytes'] = row.pop('blob_metadata.num_bytes', '')
+                        row['np_blob_metadata_mime_essence'] = row.pop('blob_metadata.mime_essence', '')
+                        row['np_blob_metadata_charset'] = row.pop('blob_metadata.charset', '')
+                        row['np_location_offset_span_start'] = row.pop('location.offset_span.start', '')
+                        row['np_location_offset_span_end'] = row.pop('location.offset_span.end', '')
+                        row['np_location_source_span_start_line'] = row.pop('location.source_span.start.line', '')
+                        row['np_location_source_span_start_column'] = row.pop('location.source_span.start.column', '')
+                        row['np_location_source_span_end_line'] = row.pop('location.source_span.end.line', '')
+                        row['np_location_source_span_end_column'] = row.pop('location.source_span.end.column', '')
+                        if not keep_secrets:
+                            row['np_snippet_before'] = hash_secret(row.pop('snippet.before', ''))
+                            row['np_snippet_after'] = hash_secret(row.pop('snippet.after', ''))
+                        else: # keep secrets
+                            row['np_snippet_before'] = row.pop('snippet.before', '')
+                            row['np_snippet_after'] = row.pop('snippet.after', '')
 
-                    writer.writerow(row)
+                        writer.writerow(row)
+            except TypeError as e:
+                if logger:
+                    print(f"Failed to process file {np_report_filename}: {str(e)}")
+                    logger.error(f"Failed to process file {np_report_filename}: {str(e)}")
 
 
 

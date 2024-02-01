@@ -333,7 +333,7 @@ for owner in OWNERS:
 
             clone_repo(repo, repo_checkout_path)
 
-            if not SKIP_GHAS:
+            if not SKIP_GITLEAKS:
                 do_gitleaks_scan(owner, repo_bare_name, repo_checkout_path, GITLEAKS_REPORTS_DIR, DRY_RUN, LOGGER)
 
             if not SKIP_TRUFFLEHOG:        
@@ -372,7 +372,7 @@ if not DRY_RUN:
                     gitleaks_merged_report_filename,  
                     ghas_secret_alerts_filename,
                     noseyparker_report_filename, 
-                    merged_report_name)
+                    merged_report_name, LOGGER)
 
     # Create another report that is a subset of the merged report, 
     # with only fuzzy matches found among the secrets results
