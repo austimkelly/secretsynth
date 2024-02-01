@@ -15,6 +15,7 @@ def get_table_style(table_links):
 
 def output_to_html(metrics, 
                    repo_metrics, 
+                   detector_metrics,
                    merged_report_name, 
                    ghas_secret_alerts_filename, 
                    matches_report_name,
@@ -38,6 +39,7 @@ def output_to_html(metrics,
     # Convert the DataFrames to HTML
     metrics_html = get_table_style(metrics).render(index=False)
     repo_metrics_html = get_table_style(repo_metrics).render(index=False)
+    detector_metrics_html = get_table_style(detector_metrics).render(index=False)
     report_links_html = get_table_style(report_links).render(index=False)
 
     # Write the HTML to a file
@@ -46,6 +48,8 @@ def output_to_html(metrics,
         f.write(metrics_html)
         f.write('<h1>Repo-Level Metrics</h1>')
         f.write(repo_metrics_html)
+        f.write('<h1>Detector Metrics</h1>')
+        f.write(detector_metrics_html)
         f.write('<h1>Report Links</h1>')
         f.write(report_links_html)
 

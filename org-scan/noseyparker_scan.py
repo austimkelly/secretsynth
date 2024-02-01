@@ -2,22 +2,29 @@
 import subprocess
 import pandas as pd
 import json
+import os
 
-import pandas as pd
-import json
-
+# This is potentially pretty brittle.
+# The noseyparker json is not fun to work with.
 def extract_paths_from_provenance(provenance):
     if provenance:
-        if provenance[0]['kind'] == 'git_repo':
-            commit_provenance = provenance[0].get('commit_provenance', {})
-            blob_path = commit_provenance.get('blob_path', '')
-            repo_path = provenance[0].get('repo_path', '').split('.git')[0]
-        elif provenance[0]['kind'] == 'file':
-            blob_path = provenance[0].get('path', '')
-            repo_path = ''
+        kind = provenance[0]['kind']
+    if kind == 'git_repo':
+        commit_provenance = provenance[0].get('commit_provenance', {})
+        blob_path = commit_provenance.get('blob_path', '')
+        repo_path = provenance[0].get('repo_path', '')
+    elif kind == 'file':
+        blob_path = provenance[0].get('path', '')
+        repo_path = provenance[1].get('repo_path', '') if len(provenance) > 1 else ''
     else:
-        blob_path = ''
-        repo_path = ''
+        blob_path = 'could not parse'
+        repo_path = 'could not parse'
+
+    # Remove the leading folder and trailing .git from repo_path
+    repo_path = os.path.join(*repo_path.split('/')[2:]).split('.git')[0]
+    # Remove leading and trailing slashes
+    repo_path = repo_path.strip('/')
+    
     return blob_path, repo_path
 
 def json_to_csv(owner, json_data, csv_file_path):

@@ -8,7 +8,6 @@ import csv
 # report_filename is the path, relative to this script, to the report file
 # dry_run is a boolean that indicates whether or not to actually run the scan
 # logger is a logger object to use for error logging
-
 def do_trufflehog_scan(target, 
                        repo_name, 
                        repo_path, 

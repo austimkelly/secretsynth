@@ -231,15 +231,28 @@ def analyze_merged_results(merged_results, matches_results, error_file, repo_nam
         ]
     })
 
+    # Add a summary row
+    repo_metrics.loc['Summary', :] = repo_metrics.sum(numeric_only=True)
+    # Convert the entire table integers. Doing a summary converts everything to floats
+    repo_metrics = repo_metrics.astype(int)
+
+    # Reset the index
+    repo_metrics.reset_index(inplace=True)
+
     # Flatten the multi-index columns
     repo_metrics.columns = ['_'.join(col).strip() for col in repo_metrics.columns.values]
 
-    # Print the metrics
-    print(repo_metrics)
-    # Write the metrics to a temporary CSV file
-    repo_metrics.to_csv('temp_metrics.csv')
+    # analyze the detector in a new table
+    # Group by 'detector' and count the number of rows for each detector
+    detector_metrics = df.groupby('detector').size().reset_index(name='detector_count')
+    # Order by 'detector_count' in descending order
+    detector_metrics = detector_metrics.sort_values('detector_count', ascending=False)
+    # Remove the index
+    detector_metrics.reset_index(drop=True, inplace=True)
+    # Write the detector metrics to a temporary CSV file
+    detector_metrics.to_csv('temp_detector_metrics.csv')
 
-    return metrics, repo_metrics
+    return metrics, repo_metrics, detector_metrics
 
 def clone_repo(repo, repo_checkout_path):
     # Check if the directory already exists
@@ -375,9 +388,9 @@ if not DRY_RUN:
         os.remove(noseyparker_report_filename)
 
     # Aggregate report results
-    metrics, repo_metrics = analyze_merged_results(merged_report_name, matches_report_name, ERROR_LOG_FILE, repos_without_ghas_secrets_enabled)
+    metrics, repo_metrics, detector_metrics = analyze_merged_results(merged_report_name, matches_report_name, ERROR_LOG_FILE, repos_without_ghas_secrets_enabled)
     html_report_path = f"{REPORTS_DIR}/report_{timestamp}.html"
-    output_to_html(metrics, repo_metrics,
+    output_to_html(metrics, repo_metrics, detector_metrics,
                 f"../../{merged_report_name}", 
                 f"../../{ghas_secret_alerts_filename}", 
                 f"../../{matches_report_name}", 

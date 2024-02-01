@@ -92,7 +92,7 @@ def merge_csv_all_tools(keep_secrets,
                     else:
                         row['secret'] = row.pop('Secret', '')
                         row['match'] = row.pop('Match', '')
-                    row['detector'] = row.pop('Fingerprint', '')
+                    row['detector'] = row.pop('RuleID', '')
                     # only in gitleaks
                     row['gl_endline'] = row.pop('EndLine', '')
                     # write these to row Commit,File,SymlinkFile,Secret,Match,StartLine,EndLine,StartColumn,EndColumn,Author,Message,Date,Email,Fingerprint,Tags
@@ -148,7 +148,7 @@ def merge_csv_all_tools(keep_secrets,
                     # Schema: provenance,blob_id,capture_group_index,match_content,rule_name,blob_metadata.id,blob_metadata.num_bytes,blob_metadata.mime_essence,blob_metadata.charset,location.offset_span.start,location.offset_span.end,location.source_span.start.line,location.source_span.start.column,location.source_span.end.line,location.source_span.end.column,snippet.before,snippet.matching,snippet.after,owner
                     row['source'] = 'noseyparker'
                     row['owner'] = row.pop('owner', '')
-                    row['repo_name'] = row.pop('repo_name', '')
+                    row['repo_name'] = row.pop('repo_path', '')
                     row['file'] = row.pop('blob_path', '')
                     row['line'] = row.pop('location.source_span.start.line', '')
                     if not keep_secrets:
