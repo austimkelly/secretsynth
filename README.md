@@ -57,7 +57,7 @@ The following versions were used during development:
 Here's the command-line help:
 
 ```
-usage: gitleaks-org-scan.py [-h] [--clean] [--dry-run] [--org-type {users,orgs}] [--owners OWNERS]
+usage: secretsynth.py [-h] [--clean] [--dry-run] [--org-type {users,orgs}] [--owners OWNERS]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -77,6 +77,8 @@ optional arguments:
   --skip-trufflehog     Skip the TruffleHog scan
   --skip-ghas           Skip the GitHub Advanced Security scan
   --skip-gitleaks       Skip the Gitleaks scan
+  --open-report-in-browser
+                        Open the report in a browser after it's generated
 ```
 
 1. Set your GitHub access token as an environment variable:
@@ -124,7 +126,7 @@ Here's an example of the output:
 ```mermaid
 sequenceDiagram
   participant User
-  participant Script as gitleaks-org-scan.py
+  participant Script as secretsynth.py
   participant GitHub
   participant FileSystem as Local File System
   User->>Script: Run script
@@ -138,6 +140,8 @@ sequenceDiagram
       Script->>FileSystem: Save gitleaks report to local file system
       Script->>Script: Run TruffleHog on cloned repository
       Script->>FileSystem: Save TruffleHog report to local file system
+      Script->>Script: Run Nosey Parker on cloned repository
+      Script->>FileSystem: Save Nosey Parker report to local file system
       Script->>GitHub: Fetch GHAS secret alerts for repository
       GitHub-->>Script: Return GHAS secret alerts
       Script->>FileSystem: Save GHAS secret alerts to local file system

@@ -44,7 +44,7 @@ def output_to_html(metrics,
 
     # Define the summary text for each section
     about_secretsynth_text = '<p>Secret Synth is a meta-secret scanner solution that wraps popular source code secret scanning solutions such as gitleaks, Nosey Parker, and Trufflehog.</p>'
-    disclaimer_text = '<p>By default, aggregated reports hash secret values. While this can be overridden, care should be taken how results are shared. Additionally, there may be known and unknown bugs in the calculations of this tool. You are expected to do your own due diligence to check the accuracy of these findings.</p>'
+    disclaimer_text = '<p>By default, aggregated reports hash secret values. While this can be overridden, care should be taken how results are shared. There may be known and unknown bugs in the calculations of this tool. You are expected to do your own due diligence to check the accuracy of these findings. The use or not use of any scanning solution should not be take as an endorsement to use any particular scanning solution. If you want to see a solution added, drop a request in the repo linked at the bottom of this document.</p>'
     license_text = '<p>Secret Synth is distributed under MIT License. Source code for Secret Synth can be found <a href="https://github.com/austimkelly/gitleaks-utils">here</a></p>'
     top_level_summary_text = '<p>Here is an overview of the secret scan results. Check the tools used and the error count to see if there may have been problems with the scan.</p>'
     repo_level_summary_text = '<p>This section provides detailed metrics for each repository scanned. This just gives you an idea of the quantity of secrets discovered by each tool and the total number of secrets in the entire repository.</p>'
