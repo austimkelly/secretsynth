@@ -72,5 +72,6 @@ def output_to_html(metrics,
         f.write('<h1>License and Source Code</h1>')
         f.write(license_text)
 
+
     # Print the absolute path of the HTML file
     print(f"HTML file written to: {report_path}")
