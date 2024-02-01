@@ -1,4 +1,4 @@
-#gitleaks-org-scan.py
+#secretsynth.py
 # License: MIT License
 
 import os
@@ -11,13 +11,18 @@ import argparse
 import shutil
 from datetime import datetime
 import csv
-import json
 import sys
+import webbrowser
 
 # import all functions our helper modules
 from csv_coalesce import *
 from ghas_secret_alerts_fetch import *
 from logger import *
+from trufflehog_scan import *
+from noseyparker_scan import *
+from gitleaks_scan import *
+from html_report_writer import *
+from secret_matcher import *
 
 # Add command line arguments
 parser = argparse.ArgumentParser()
@@ -28,8 +33,18 @@ parser.add_argument("--keep-secrets-in-reports", action="store_true",
 parser.add_argument("--repos-internal-type", action="store_true", help="If your repositories are internal, this flag will be added when fetching repositories from Github.")
 parser.add_argument("--org-type", choices=["users", "orgs"], help="set the organization type")
 parser.add_argument("--owners", type=str, help="comma-delimited list of owners")
+parser.add_argument("--skip-noseyparker", action="store_true", help="Skip the Noseyparker scan")
+parser.add_argument("--skip-trufflehog", action="store_true", help="Skip the TruffleHog scan")
+parser.add_argument("--skip-ghas", action="store_true", help="Skip the GitHub Advanced Security alerts scan")
+parser.add_argument("--skip-gitleaks", action="store_true", help="Skip the Gitleaks scan")
+parser.add_argument("--open-report-in-browser", action="store_true", help="Open the report in a browser after it's generated")
 
 args = parser.parse_args()
+
+SKIP_NOSEYPARKER = args.skip_noseyparker
+SKIP_TRUFFLEHOG = args.skip_trufflehog
+SKIP_GHAS = args.skip_ghas
+SKIP_GITLEAKS = args.skip_gitleaks
 
 # If --clean is not used, --org-type and --owners are required
 if not args.clean and (args.org_type is None or args.owners is None):
@@ -38,22 +53,31 @@ if not args.clean and (args.org_type is None or args.owners is None):
 DRY_RUN = args.dry_run  # Set to True if --dry-run is present, False otherwise
 print(f"DRY_RUN={DRY_RUN}")
 
+print(f"SKIP_NOSEYPARKER={SKIP_NOSEYPARKER}")
+print(f"SKIP_TRUFFLEHOG={SKIP_TRUFFLEHOG}")
+print(f"SKIP_GHAS={SKIP_GHAS}")
+print(f"SKIP_GITLEAKS={SKIP_GITLEAKS}")
+
+timestamp = datetime.now().strftime('%Y%m%d%H%M')
 KEEP_SECRETS = args.keep_secrets_in_reports
+print(f"KEEP_SECRETS={KEEP_SECRETS}")
 INTERNAL_REPOS_FLAG=args.repos_internal_type
 ORG_TYPE = args.org_type if args.org_type else None # This can be "users" or "orgs"
 OWNERS = args.owners.split(",") if args.owners else None  # Split the value of --owners into a list if present, None otherwise
+OPEN_REPORT_IN_BROWSER = args.open_report_in_browser
+
 TOKEN = os.getenv('GITHUB_ACCESS_TOKEN')
 CHECKOUT_DIR = "./checkout"  # This is the directory where the repositories will be cloned
 GITLEAKS_REPORTS_DIR = "./gitleaks_reports"  # This is the directory where the gitleaks reports (per repo) will be saved
-
-timestamp = datetime.now().strftime('%Y%m%d%H%M')
+NOSEY_PARKER_ROOT_ARTIFACT_DIR = "./np_datastore"
+NOSEYPARKER_DATASTORE_DIR = f"{NOSEY_PARKER_ROOT_ARTIFACT_DIR}/np_datastore_{timestamp}"
 REPORTS_DIR = f"./reports/reports_{timestamp}"  # This is where aggregated results are saved
 ERROR_LOG_FILE = f"./reports/reports_{timestamp}/error_log_{timestamp}.log"  # This is where error messages are saved
 checkout_dir = "./checkout"
 headers = {"Authorization": f"token {TOKEN}"}
 
 def check_commands():
-    commands = ["gitleaks", "git", "trufflehog"]
+    commands = ["gitleaks", "git", "trufflehog", "noseyparker"]
     for command in commands:
         if shutil.which(command) is None:
             print(f"ERROR: {command} is not accessible.")
@@ -102,7 +126,7 @@ def concatenate_gitleaks_csv_files(gitleaks_report_filename):
         df.insert(1, 'Repository', repo_name)
 
         if DRY_RUN:
-            print(f"Reading {csv_file}...")
+            print(f"dry-run: Reading {csv_file}...")
 
         # Read each non-empty CSV file into a DataFrame and append it to the list
         try:
@@ -135,7 +159,7 @@ def fetch_repos(account_type, account, headers, internal_type=False, page=1, per
         if internal_type:
             repos_url += '&type=internal'
         if DRY_RUN:
-            print(f"Calling {repos_url}...")
+            print(f"dry-run: Calling {repos_url}...")
 
         response = requests.get(repos_url, headers=headers)
         data = response.json()
@@ -152,58 +176,23 @@ def fetch_repos(account_type, account, headers, internal_type=False, page=1, per
 
     return repos
 
-def do_gitleaks_scan(target, repo_name, repo_path):
-    # Run gitleaks in each repository. See https://github.com/gitleaks/gitleaks?tab=readme-ov-file#usage
-    print(f"Running gitleaks on {repo_path} ...")
-    command = [
-        "gitleaks",
-        "detect",
-        "-f", # --report-format string
-        "csv",
-        "-r", # --report-path string
-        f"{GITLEAKS_REPORTS_DIR}/gitleaks_findings_{target}_{repo_name}.csv",
-        "--source",
-        f"{repo_path}",
-        "-c", # --config string
-        "./.gitleaks.toml", 
-        #"-v"
-    ]
-    print("gitleaks command:", " ".join(command))
-    if not DRY_RUN:
-        result = subprocess.run(command, capture_output=True, text=True, check=False)
-        print(result.stdout)
-        #print(result.stderr)
+def count_lines_in_file(file_path):
+    _, file_extension = os.path.splitext(file_path)
+    if file_extension == '.csv':
+        with open(file_path, 'r') as file:
+            return sum(1 for row in csv.reader(file))
+    else:
+        with open(file_path, 'r') as file:
+            return sum(1 for line in file)
 
-        if result.returncode != 0:
-            print(f"gitleaks command returned non-zero exit status {result.returncode}")
-
-# target is the owner of the repository
-# repo_name is the name of the repository
-# repo_path is the path, relative to this script, to the repository
-# Calling trufflehog: tuffflehog filesystem {repo_path} --json
-def do_trufflehog_scan(target, repo_name, repo_path, report_filename):
-    command = f"trufflehog filesystem {repo_path} --json"
+# Docs for analyze_merged_results
+# merged_results: the path to the merged results CSV file
+# matches_results: the path to the matches results CSV file
+# error_file: the path to the error log file
+# repo_names_no_ghas_secrets_enabled: a list of repository names that do not have GHAS secrets scanning enabled
+# Returns: a tuple of two DataFrames: the first is the metrics DataFrame, the second is the repo-level metrics DataFrame
+def analyze_merged_results(merged_results, matches_results, error_file, repo_names_no_ghas_secrets_enabled=None):
     
-    print(f"Running truffleog on owner/repo: {target}/{repo_name}, with command: {command}")
-    
-    result = subprocess.run(["trufflehog", "filesystem", repo_path, "--json"], capture_output=True, text=True)
-    findings = result.stdout.splitlines()
-    with open(report_filename, 'a', newline='') as f:
-        writer = csv.writer(f)
-        for finding in findings:
-            json_finding = json.loads(finding)
-            if 'SourceMetadata' in json_finding:
-                data = json_finding['SourceMetadata']['Data']['Filesystem']
-                if 'file' in data:
-                    line = data['line'] if 'line' in data else '0' # use 0 if line is not present
-                    extra_data = json_finding.get('ExtraData', {})
-                    extra_data_values = list(extra_data.values()) if extra_data is not None else []
-                    row = [target, repo_name, data['file'], line, json_finding['SourceID'], json_finding['SourceType'], json_finding['SourceName'], json_finding['DetectorType'], json_finding['DetectorName'], json_finding['DecoderName'], json_finding['Verified'], json_finding['Raw'], json_finding['RawV2'], json_finding['Redacted']] + extra_data_values
-                    writer.writerow(row)
-                else:
-                    print(f"Unexpected structure in finding: {finding}")
-
-def analyze_merged_results(merged_results, repo_names_no_ghas_secrets_enabled):
     df = pd.read_csv(merged_results)
 
     # Calculate the metrics
@@ -216,44 +205,54 @@ def analyze_merged_results(merged_results, repo_names_no_ghas_secrets_enabled):
     total_secrets = df['secret'].count()
     repos_without_ghas_secrets_scanning = len(repo_names_no_ghas_secrets_enabled) if repo_names_no_ghas_secrets_enabled else 0
     total_distinct_secrets = df['secret'].nunique()
+    now = datetime.now()
+    err_line_count = count_lines_in_file(error_file)
+    matches_line_count = count_lines_in_file(matches_results) - 1 # subtract 1 for the header row
 
     # Create a DataFrame with the metrics
     metrics = pd.DataFrame({
-        'Metric': ['Arguments', 'Owners', 'Scanning Source Tools', 'Total Repos on Disk', 'Total Repos with Secrets', 'Total Secrets by Source', 'Total Secrets', 'Repos without GHAS Secrets Scanning Enabled', 'Total Distinct Secrets'],
-        'Value': [cmd_args, owners, distinct_sources, total_repos_on_disk, total_repos_with_secrets, total_secrets_by_source, total_secrets, repos_without_ghas_secrets_scanning, total_distinct_secrets]
+        'Metric': ['Time of Report', 'Arguments', 'Owners', 'Scanning Source Tools', 'Total Repos on Disk', 'Total Repos with Secrets', 'Total Secrets by Source', 'Total Secrets (all tools)', 'Repos without GHAS Secrets Scanning Enabled', 'Total Distinct Secrets', 'Secret Matches Count', 'Total Errors in Log'],
+        'Value': [now, cmd_args, owners, distinct_sources, total_repos_on_disk, total_repos_with_secrets, total_secrets_by_source, total_secrets, repos_without_ghas_secrets_scanning, total_distinct_secrets, matches_line_count, err_line_count]
     })
 
-    return metrics
+    # Do repo-level metrics
+    # Rows will be 'repos'
+    # columns wil be: total secrets, total distinct secrets, 
+    # total gitleaks secrets, total trufflehog secrets, total noseyparker secrets, total ghas secrets
+    grouped = df.groupby('repo_name')
 
-def output_to_html(metrics, 
-                   merged_report_name, 
-                   ghas_secret_alerts_filename, 
-                   matches_report_name,
-                   error_logfile, 
-                   report_path 
-                   ):
-    # Create a DataFrame with links to the raw report files
-    report_links = pd.DataFrame({
-        'Report Name': ['Merged Report', 'GHAS Secret Alerts', 'Matches Report', "Error Log"],
-        'CSV Link': [f'<a href="{merged_report_name}">{merged_report_name}</a>',
-                     f'<a href="{ghas_secret_alerts_filename}">{ghas_secret_alerts_filename}</a>',
-                     f'<a href="{matches_report_name}">{matches_report_name}</a>',
-                     f'<a href="{error_logfile}">{error_logfile}</a>']
+    repo_metrics = grouped.agg({
+        'secret': ['count', 'nunique'],
+        'source': [
+            ('total_gitleaks_secrets', lambda x: (x == 'gitleaks').sum()),
+            ('total_trufflehog_secrets', lambda x: (x == 'trufflehog').sum()),
+            ('total_noseyparker_secrets', lambda x: (x == 'noseyparker').sum()),
+            ('total_ghas_secrets', lambda x: (x == 'ghas').sum())
+        ]
     })
 
-    # Convert the DataFrames to HTML
-    metrics_html = metrics.to_html()
-    report_links_html = report_links.to_html(escape=False)
+    # Add a summary row
+    repo_metrics.loc['Summary', :] = repo_metrics.sum(numeric_only=True)
+    # Convert the entire table integers. Doing a summary converts everything to floats
+    repo_metrics = repo_metrics.astype(int)
 
-    # Write the HTML to a file
-    with open(report_path, 'w') as f:
-        f.write('<h1>Metrics</h1>')
-        f.write(metrics_html)
-        f.write('<h1>Report Links</h1>')
-        f.write(report_links_html)
+    # Reset the index
+    repo_metrics.reset_index(inplace=True)
 
-    # Print the absolute path of the HTML file
-    print(f"HTML file written to: {report_path}")
+    # Flatten the multi-index columns
+    repo_metrics.columns = ['_'.join(col).strip() for col in repo_metrics.columns.values]
+
+    # analyze the detector in a new table
+    # Group by 'detector' and count the number of rows for each detector
+    detector_metrics = df.groupby('detector').size().reset_index(name='detector_count')
+    # Order by 'detector_count' in descending order
+    detector_metrics = detector_metrics.sort_values('detector_count', ascending=False)
+    # Remove the index
+    detector_metrics.reset_index(drop=True, inplace=True)
+    # Write the detector metrics to a temporary CSV file
+    detector_metrics.to_csv('temp_detector_metrics.csv')
+
+    return metrics, repo_metrics, detector_metrics
 
 def clone_repo(repo, repo_checkout_path):
     # Check if the directory already exists
@@ -268,34 +267,47 @@ def clone_repo(repo, repo_checkout_path):
 def count_top_level_dirs(directory):
     return len([name for name in os.listdir(directory) if os.path.isdir(os.path.join(directory, name))])
 
-# make reporting directories if they doesn't exist
-if not os.path.exists(GITLEAKS_REPORTS_DIR):
-    os.makedirs(GITLEAKS_REPORTS_DIR)
-if not os.path.exists(REPORTS_DIR):
-    os.makedirs(REPORTS_DIR)
-
-LOGGER = setup_error_logger(ERROR_LOG_FILE)
-check_commands()
-
 # If the --clean argument is present, delete the code and temp results directories
 if args.clean:
     confirm = input("Are you sure you want to delete the directories ./checkouts and ./reports? (y/n): ")
     if confirm.lower() == "y":
         if DRY_RUN:
-            print("Deleting directories ./checkouts and ./reports...")
+            print("dry-run: Deleting directories ./checkouts and ./reports...")
         else:
             shutil.rmtree(CHECKOUT_DIR, ignore_errors=True)
             shutil.rmtree(GITLEAKS_REPORTS_DIR, ignore_errors=True)
+            shutil.rmtree(NOSEY_PARKER_ROOT_ARTIFACT_DIR, ignore_errors=True)
     else:
         print("Operation cancelled.")
     exit(0)
 
-# Column headers for trufflehog report
-column_headers = ['target', 'repo_name', 'file', 'line', 'source_id', 'source_type', 'source_name', 'detector_type', 'detector_name', 'decoder_name', 'verified', 'raw', 'raw_v2', 'redacted']
+# make reporting directories if they doesn't exist
+if not DRY_RUN:
+    if not os.path.exists(GITLEAKS_REPORTS_DIR):
+        os.makedirs(GITLEAKS_REPORTS_DIR)
+    if not os.path.exists(REPORTS_DIR):
+        os.makedirs(REPORTS_DIR)
+    LOGGER = setup_error_logger(ERROR_LOG_FILE)
+else:
+    LOGGER = None
+    
+check_commands()
+
 trufflehog_report_filename = f'{REPORTS_DIR}/trufflehog_results_{timestamp}.csv'
-with open(trufflehog_report_filename, 'w', newline='') as f:
-    writer = csv.writer(f)
-    writer.writerow(column_headers)
+noseyparker_report_filename = f"{REPORTS_DIR}/noseyparker_results_{timestamp}.csv" 
+
+if not DRY_RUN:
+# Column headers for trufflehog report
+    trufflehog_column_headers = ['target', 'repo_name', 'file', 'line', 'source_id', 'source_type', 'source_name', 'detector_type', 'detector_name', 'decoder_name', 'verified', 'raw', 'raw_v2', 'redacted']
+    with open(trufflehog_report_filename, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(trufflehog_column_headers)
+
+    with open(noseyparker_report_filename, 'w', newline='') as f:
+        writer = csv.writer(f)   
+
+    if not os.path.exists(NOSEYPARKER_DATASTORE_DIR):
+        os.makedirs(NOSEYPARKER_DATASTORE_DIR)
 
 for owner in OWNERS: 
     # Get list of repositories for the TARGET
@@ -321,51 +333,71 @@ for owner in OWNERS:
 
             clone_repo(repo, repo_checkout_path)
 
-            do_gitleaks_scan(owner, repo_bare_name, repo_checkout_path)
-            
-            do_trufflehog_scan(owner, repo_bare_name, repo_checkout_path, trufflehog_report_filename)
-            
+            if not SKIP_GITLEAKS:
+                do_gitleaks_scan(owner, repo_bare_name, repo_checkout_path, GITLEAKS_REPORTS_DIR, DRY_RUN, LOGGER)
+
+            if not SKIP_TRUFFLEHOG:        
+                do_trufflehog_scan(owner, repo_bare_name, repo_checkout_path, trufflehog_report_filename, DRY_RUN, LOGGER)
+
+            if not SKIP_NOSEYPARKER:
+                do_noseyparker_scan(owner, repo_bare_name, repo_checkout_path, NOSEYPARKER_DATASTORE_DIR, DRY_RUN, LOGGER)
+
+    if not SKIP_NOSEYPARKER and not DRY_RUN:
+        run_noseyparker_report(owner, NOSEYPARKER_DATASTORE_DIR, noseyparker_report_filename, LOGGER)
+
 # Concatenate all CSV files into a single CSV file
-if not os.path.exists(CHECKOUT_DIR):    # Skip if ./checkout does not exist
+if not os.path.exists(CHECKOUT_DIR) and not DRY_RUN:    # Skip if ./checkout does not exist
     print("ERROR: The ./checkout folder does not exist. Check your git configuration and try again. No reports will be generated.")
     LOGGER.error("ERROR: The ./checkout folder does not exist. Check your git configuration and try again. No reports will be generated.")  
     exit(1)
 
-print("Concatenating gitleaks report CSV files...")
 gitleaks_merged_report_filename = f"{REPORTS_DIR}/gitleaks_report_merged_filename_{timestamp}.csv"
-concatenate_gitleaks_csv_files(gitleaks_merged_report_filename)
+if not SKIP_GITLEAKS:
+    print("Concatenating gitleaks report CSV files...")
+    concatenate_gitleaks_csv_files(gitleaks_merged_report_filename)
 
 ghas_secret_alerts_filename = f"{REPORTS_DIR}/ghas_secret_alerts_{timestamp}.csv"
-repos_without_ghas_secrets_enabled = fetch_ghas_secret_scanning_alerts(ORG_TYPE, OWNERS, headers, ghas_secret_alerts_filename, LOGGER)
+if not SKIP_GHAS:
+    repos_without_ghas_secrets_enabled = fetch_ghas_secret_scanning_alerts(ORG_TYPE, OWNERS, headers, ghas_secret_alerts_filename, DRY_RUN, LOGGER)
+else:
+    repos_without_ghas_secrets_enabled = None
+        
 print("Secrets scanning execution completed.")
-
 print("Creating merge and match reports.")
 
-# Create a unified reports of all secrets 
-merged_report_name = f"{REPORTS_DIR}/merged_scan_results_report_{timestamp}.csv"
-merge_csv_all_tools(trufflehog_report_filename, 
-                gitleaks_merged_report_filename,  
-                ghas_secret_alerts_filename,
-                KEEP_SECRETS, 
-                merged_report_name)
+if not DRY_RUN:
+    # Create a unified reports of all secrets 
+    merged_report_name = f"{REPORTS_DIR}/merged_scan_results_report_{timestamp}.csv"
+    merge_csv_all_tools(KEEP_SECRETS, trufflehog_report_filename, 
+                    gitleaks_merged_report_filename,  
+                    ghas_secret_alerts_filename,
+                    noseyparker_report_filename, 
+                    merged_report_name, LOGGER)
 
-# Create another report that is a subset of the merged report, 
-# with only fuzzy matches found among the secrets results
-matches_report_name = f"{REPORTS_DIR}/scanning_tool_matches_only_{timestamp}.csv" 
-find_matches(merged_report_name, matches_report_name)
+    # Create another report that is a subset of the merged report, 
+    # with only fuzzy matches found among the secrets results
+    matches_report_name = f"{REPORTS_DIR}/scanning_tool_matches_only_{timestamp}.csv" 
+    find_matches(merged_report_name, matches_report_name)
 
-if not KEEP_SECRETS:
-    # Delete gitleaks_merged_report_filename & trufflehog_report_filename
-    # because these reports contain secrets in plain text
-    print(f"Deleting {trufflehog_report_filename} and {gitleaks_merged_report_filename}...")
-    os.remove(gitleaks_merged_report_filename)
-    os.remove(trufflehog_report_filename)
+    if not KEEP_SECRETS:
+        # Delete gitleaks_merged_report_filename & trufflehog_report_filename
+        # because these reports contain secrets in plain text
+        print(f"Deleting {trufflehog_report_filename}, {gitleaks_merged_report_filename}, and {noseyparker_report_filename}...")
+        os.remove(gitleaks_merged_report_filename)
+        os.remove(trufflehog_report_filename)
+        os.remove(noseyparker_report_filename)
 
-# Aggregate report results
-metrics = analyze_merged_results(merged_report_name, repos_without_ghas_secrets_enabled)
-html_report_path = f"{REPORTS_DIR}/report_{timestamp}.html"
-output_to_html(metrics, f"../../{merged_report_name}", 
-               f"../../{ghas_secret_alerts_filename}", 
-               f"../../{matches_report_name}", 
-               f"../../{ERROR_LOG_FILE}",
-               html_report_path)
+    # Aggregate report results
+    metrics, repo_metrics, detector_metrics = analyze_merged_results(merged_report_name, matches_report_name, ERROR_LOG_FILE, repos_without_ghas_secrets_enabled)
+    html_report_path = f"{REPORTS_DIR}/report_{timestamp}.html"
+    output_to_html(metrics, repo_metrics, detector_metrics,
+                f"../../{merged_report_name}", 
+                f"../../{ghas_secret_alerts_filename}", 
+                f"../../{matches_report_name}", 
+                f"../../{ERROR_LOG_FILE}",
+                html_report_path)
+    
+    if OPEN_REPORT_IN_BROWSER:
+        # open the report in the default browser
+        absolute_path = os.path.abspath(html_report_path)
+        webbrowser.open(f"file://{absolute_path}", new=2)

@@ -26,7 +26,15 @@ def fetch_repos(account_type, account, headers, logger=None, page=1, per_page=10
     
     return repos
 
-def fetch_ghas_secret_scanning_alerts(owner_type, owners, headers, report_name, logger=None):
+def fetch_ghas_secret_scanning_alerts(owner_type, 
+                                      owners, headers, 
+                                      report_name, 
+                                      dry_run=False, 
+                                      logger=None):
+    
+    if dry_run:
+        print(f"dry-run: Calling Github REST API for all repos under orgs: {owners}")
+        return
     
     # Open the CSV file
     with open(report_name, 'w', newline='') as csvfile:

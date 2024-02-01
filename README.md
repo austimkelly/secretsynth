@@ -1,13 +1,14 @@
-# gitleaks-utils
+# secretsynth
 
-gitleaks-utils, in its current form, is a utility for evaluating discovered secrets across multiple orgs, and repositories. The name gitleaks-utils is a bit misleading since it requires the following tools:
+secretsynths, in its current form, is a utility for evaluating discovered secrets across multiple orgs, and repositories. secretsynth leverages the following tools:
 
 * gitleaks
 * trufflehog
 * Github Advanced Security
 * Github
+* Nosey Parker
 
-## Why gitleaks-utils?
+## Why secretsynth?
 
 In short, to help you: 
 
@@ -23,11 +24,21 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Pre-requisites
 
 * Python 3.6+
-* `git` installed and in your PATH
 * A Github account with sufficient permissions to access the target repositories
 * A Github access token with sufficient permissions get a listing of repositories from the Github REST API
+* `git` installed and in your PATH
 * `gitleaks` installed and in your PATH
-* 'trufflehog' installed and in your PATH
+* `trufflehog` installed and in your PATH
+* `noseyparker` installed and in your PATH
+
+### Versions
+
+The following versions were used during development:
+
+* noseyparker, [v0.16.0](https://github.com/praetorian-inc/noseyparker/releases/tag/v0.16.0).
+* gitleaks, [v8.18.1](https://github.com/gitleaks/gitleaks/releases/tag/v8.18.1)
+* trufflehog, [v3.66.2](https://github.com/trufflesecurity/trufflehog/releases/tag/v3.66.2)
+* GitHub REST API, [API Version 2022-11-28](https://docs.github.com/en/rest?apiVersion=2022-11-28)
 
 ## Installation
 
@@ -57,9 +68,15 @@ optional arguments:
                         Keep plain text secrets in the aggregated reports. By default the tool will hash secrets for final reports if this flag is missing.
   --repos-internal-type
                         If your repositories are internal, this flag will be added when fetching repositories from Github.
+  --open-report-in-browser
+                        Open the report in a browser after it's generated
   --org-type {users,orgs}
                         set the organization type
   --owners OWNERS       comma-delimited list of owners
+  --skip-noseyparker    Skip the Noseyparker scan
+  --skip-trufflehog     Skip the TruffleHog scan
+  --skip-ghas           Skip the GitHub Advanced Security scan
+  --skip-gitleaks       Skip the Gitleaks scan
 ```
 
 1. Set your GitHub access token as an environment variable:
@@ -78,21 +95,21 @@ Here are some examples of use cases for running the script:
 
 Example: Running on a personal owner account:
 
-`python3 gitleaks-org-scan.py --org-type users --owners austimkelly`
+`python3 secretsynth.py --org-type users --owners austimkelly`
 
-Example: Running on a personal owner account and keeping plain text secrets in the output:
+Example: Running on a personal owner account and keeping plain text secrets in the output, but omit trufflehog from the execution:
 
-`python3 gitleaks-org-scan.py --org-type users --owners austimkelly --keep-secrets-in-reports`
+`python3 secretsynth.py --org-type users --owners austimkelly --keep-secrets-in-reports --skip-trufflehog`
 
 Example: Running on multiple organizations:
 
-`python3 gitleaks-org-scan.py --org-type orgs --owners org1,org2,org3`
+`python3 secretsynth.py --org-type orgs --owners org1,org2,org3`
 
 Note: Multiple Github Personal Access Tokens are not supported yet.
 
 Example: Cleaning up source and scanning artifacts:
 
-`python3 gitleaks-org-scan.py --clean`
+`python3 secretsynth.py --clean`
 
 ## Reports
 
