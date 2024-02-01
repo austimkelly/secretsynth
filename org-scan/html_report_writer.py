@@ -14,6 +14,7 @@ def get_table_style(table_links):
     return styled_table_links
 
 def output_to_html(metrics, 
+                   repo_metrics, 
                    merged_report_name, 
                    ghas_secret_alerts_filename, 
                    matches_report_name,
@@ -21,7 +22,6 @@ def output_to_html(metrics,
                    report_path 
                    ):
     
-
     # Define descriptions for Report Links
     descriptions = ['The merged report contains the row-by-row of all secrets from all secret scanners. The merged reports create a few common fields to make it easier to aggregate and filter across multiple secret scanning solutions.', 
                     'GHAS alerts are the alerts that are pulled down from the GitHub Advanced Security (GHAS) API. GHAS secret alerts to do not contain secret, line, or file information from the API.', 
@@ -37,14 +37,15 @@ def output_to_html(metrics,
 
     # Convert the DataFrames to HTML
     metrics_html = get_table_style(metrics).render(index=False)
-    #report_links_html = report_links.to_html(escape=False)
-    # Convert the styled DataFrame to HTML
+    repo_metrics_html = get_table_style(repo_metrics).render(index=False)
     report_links_html = get_table_style(report_links).render(index=False)
 
     # Write the HTML to a file
     with open(report_path, 'w') as f:
-        f.write('<h1>Metrics</h1>')
+        f.write('<h1>Top Level Summary</h1>')
         f.write(metrics_html)
+        f.write('<h1>Repo-Level Metrics</h1>')
+        f.write(repo_metrics_html)
         f.write('<h1>Report Links</h1>')
         f.write(report_links_html)
 

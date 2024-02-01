@@ -22,6 +22,7 @@ from trufflehog_scan import *
 from noseyparker_scan import *
 from gitleaks_scan import *
 from html_report_writer import *
+from secret_matcher import *
 
 # Add command line arguments
 parser = argparse.ArgumentParser()
@@ -184,7 +185,14 @@ def count_lines_in_file(file_path):
         with open(file_path, 'r') as file:
             return sum(1 for line in file)
 
+# Docs for analyze_merged_results
+# merged_results: the path to the merged results CSV file
+# matches_results: the path to the matches results CSV file
+# error_file: the path to the error log file
+# repo_names_no_ghas_secrets_enabled: a list of repository names that do not have GHAS secrets scanning enabled
+# Returns: a tuple of two DataFrames: the first is the metrics DataFrame, the second is the repo-level metrics DataFrame
 def analyze_merged_results(merged_results, matches_results, error_file, repo_names_no_ghas_secrets_enabled=None):
+    
     df = pd.read_csv(merged_results)
 
     # Calculate the metrics
@@ -207,7 +215,31 @@ def analyze_merged_results(merged_results, matches_results, error_file, repo_nam
         'Value': [now, cmd_args, owners, distinct_sources, total_repos_on_disk, total_repos_with_secrets, total_secrets_by_source, total_secrets, repos_without_ghas_secrets_scanning, total_distinct_secrets, matches_line_count, err_line_count]
     })
 
-    return metrics
+    # Do repo-level metrics
+    # Rows will be 'repos'
+    # columns wil be: total secrets, total distinct secrets, 
+    # total gitleaks secrets, total trufflehog secrets, total noseyparker secrets, total ghas secrets
+    grouped = df.groupby('repo_name')
+
+    repo_metrics = grouped.agg({
+        'secret': ['count', 'nunique'],
+        'source': [
+            ('total_gitleaks_secrets', lambda x: (x == 'gitleaks').sum()),
+            ('total_trufflehog_secrets', lambda x: (x == 'trufflehog').sum()),
+            ('total_noseyparker_secrets', lambda x: (x == 'noseyparker').sum()),
+            ('total_ghas_secrets', lambda x: (x == 'ghas').sum())
+        ]
+    })
+
+    # Flatten the multi-index columns
+    repo_metrics.columns = ['_'.join(col).strip() for col in repo_metrics.columns.values]
+
+    # Print the metrics
+    print(repo_metrics)
+    # Write the metrics to a temporary CSV file
+    repo_metrics.to_csv('temp_metrics.csv')
+
+    return metrics, repo_metrics
 
 def clone_repo(repo, repo_checkout_path):
     # Check if the directory already exists
@@ -343,9 +375,10 @@ if not DRY_RUN:
         os.remove(noseyparker_report_filename)
 
     # Aggregate report results
-    metrics = analyze_merged_results(merged_report_name, matches_report_name, ERROR_LOG_FILE, repos_without_ghas_secrets_enabled)
+    metrics, repo_metrics = analyze_merged_results(merged_report_name, matches_report_name, ERROR_LOG_FILE, repos_without_ghas_secrets_enabled)
     html_report_path = f"{REPORTS_DIR}/report_{timestamp}.html"
-    output_to_html(metrics, f"../../{merged_report_name}", 
+    output_to_html(metrics, repo_metrics,
+                f"../../{merged_report_name}", 
                 f"../../{ghas_secret_alerts_filename}", 
                 f"../../{matches_report_name}", 
                 f"../../{ERROR_LOG_FILE}",
