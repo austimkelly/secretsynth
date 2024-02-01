@@ -160,6 +160,7 @@ def fetch_repos(account_type, account, headers, internal_type=False, page=1, per
             repos_url += '&type=internal'
         if DRY_RUN:
             print(f"dry-run: Calling {repos_url}...")
+            break;
 
         response = requests.get(repos_url, headers=headers)
         data = response.json()
@@ -290,8 +291,9 @@ if not DRY_RUN:
     LOGGER = setup_error_logger(ERROR_LOG_FILE)
 else:
     LOGGER = None
-    
-check_commands()
+
+if not DRY_RUN:   
+    check_commands()
 
 trufflehog_report_filename = f'{REPORTS_DIR}/trufflehog_results_{timestamp}.csv'
 noseyparker_report_filename = f"{REPORTS_DIR}/noseyparker_results_{timestamp}.csv" 
@@ -319,12 +321,15 @@ for owner in OWNERS:
     # Check if the response is a dictionary containing an error message
     if isinstance(repos, dict) and "message" in repos:
         print(f"ERROR: Error on owner: {owner} with message:  {repos['message']}")
-        LOGGER.error(f"ERROR: Error on owner: {owner} with message:  {repos['message']}")
+        if LOGGER:
+            LOGGER.error(f"ERROR: Error on owner: {owner} with message:  {repos['message']}")
         break;
     elif repos is None or len(repos) == 0:
-        print(f"ERROR: No repositories found for {owner}. Please check your Github personal access token and that you have the correct permission to read from the org: {owner}")
-        LOGGER.error(f"ERROR: No repositories found for {owner}. Please check your Github personal access token and that you have the correct permission to read from the org: {owner}")
-        continue;
+        if not DRY_RUN:
+            print(f"ERROR: No repositories found for {owner}. Please check your Github personal access token and that you have the correct permission to read from the org: {owner}")
+            if LOGGER:
+                LOGGER.error(f"ERROR: No repositories found for {owner}. Please check your Github personal access token and that you have the correct permission to read from the org: {owner}")
+            continue;
     else:
         # Clone each repository and do a basic gitleaks and trufflehog scan
         for repo in repos:

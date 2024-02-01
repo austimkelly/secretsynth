@@ -1,25 +1,27 @@
-# secretsynth
+# Secret Synth
 
-secretsynths, in its current form, is a utility for evaluating discovered secrets across multiple orgs, and repositories. secretsynth leverages the following tools:
+A python-based tool for discovering secrets with multiple secret scanning solutions across multiple orgs, and repositories. Secret Synth leverages the following secret scanning tools:
 
 * gitleaks
 * trufflehog
 * Github Advanced Security
-* Github
 * Nosey Parker
 
-## Why secretsynth?
+Only pulls from GitHub are currently supported.
+
+## Why Secret Synth?
 
 In short, to help you: 
 
-* Identify what secrets scanning solution(s) to use
-* Know how many secrets may be discovered in your repositories (like a dry run)
-* Identify true positives and remediate them before rolling out an alerting system
-* Identify false positives and tune your alerting system to eliminate noisy alerts
+* Identify what secrets scanning solution(s) and strategy you may want to deploy.
+* Know how many secrets may be discovered in your repositories (like a dry run).
+* Identify classes of secrets that are being identified in your source code.
+* Identify true positives and remediate them before rolling out a secrets alerting solution.
+* Identify false positives and tune your alerting system to eliminate noisy alerts (which decreases developer productivity).
 
 # License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details. As such, the software is provided "as-is" and without warranty. The authors are not responsible for any damages or liabilities that may arise from the use of the software.
 
 ## Pre-requisites
 
@@ -50,15 +52,16 @@ The following versions were used during development:
 
 `pip install -r requirements.txt`
 
-3. Install [Gitleaks](https://github.com/zricethezav/gitleaks)
+3. Install the other required secrets scanners.
 
 ## Usage
 
 Here's the command-line help:
 
 ```
-usage: secretsynth.py [-h] [--clean] [--dry-run] [--org-type {users,orgs}] [--owners OWNERS]
-
+usage: secretsynth.py [-h] [--clean] [--dry-run] [--keep-secrets-in-reports] [--repos-internal-type]
+                      [--org-type {users,orgs}] [--owners OWNERS] [--skip-noseyparker] [--skip-trufflehog]
+                      [--skip-ghas] [--skip-gitleaks] [--open-report-in-browser]
 optional arguments:
   -h, --help            show this help message and exit
   --clean               delete the directories ./checkouts and ./reports. When --clean is present all other commands are
@@ -93,13 +96,17 @@ Gitleaks can generate a lot of false positives out of the box. So review results
 
 3. Run the script from the `org-scan` directory:
 
+## Sample Scripts
+
 Here are some examples of use cases for running the script:
 
-Example: Running on a personal owner account:
+**Example**: Running on a personal owner account:
 
-`python3 secretsynth.py --org-type users --owners austimkelly`
+This example uses some small open source repos with secrets in them. Hence, this is a good test for you to quickly evaluate the setup is correct for your environment.
 
-Example: Running on a personal owner account and keeping plain text secrets in the output, but omit trufflehog from the execution:
+`python3 secretsynth.py --org-type users --owners swell-consulting --skip-ghas --open-report-in-browser`
+
+**Example**: Running on a personal owner account and keeping plain text secrets in the output, but omit trufflehog from the execution:
 
 `python3 secretsynth.py --org-type users --owners austimkelly --keep-secrets-in-reports --skip-trufflehog`
 
@@ -115,11 +122,15 @@ Example: Cleaning up source and scanning artifacts:
 
 ## Reports
 
-After the script has finished running, you can find the consolidated reports in the `./reports/reports_<YYYYMMDDHHMM>` directory. An HTML file in that directory contains a short summary of the results and the raw artifacts (CSV) and error log for any tool failures you want to investigate.
+After the script has finished running, you can find the consolidated reports in the `./org-scan/reports/reports_<YYYYMMDDHHMM>` directory. An HTML file in that directory contains a short summary of the results, CSV artifacts with merged alerts, and an error log for any tool failures you want to investigate.
 
 Here's an example of the output:
 
-![report](./doc/secrets_report.png)
+![html report](./doc/html_report.png)
+
+You can further analyze the data in your favorite spreadsheet or data warehouse:
+
+![csv report](./doc/secrets_report.png)
 
 ## org-scan call sequence
 
@@ -149,11 +160,17 @@ sequenceDiagram
   end
 ```
 
-# Gitleaks as a Github Action
+# Github Actions with Secrets Scanners
+
+## Gitleaks as a Github Action
 
 This repository also contains a Github Action that can be used to scan a repository for secrets using Gitleaks. The action is located in the [.github/actions/gitleaks](.github/workflows/gitleaks.yml) directory. 
 
 NOTE: That running gitleaks against a repo owned by a user is free. A repository owned by an organization will require a free API key. See [Obtaining a Gitleaks License](https://gitleaks.io/products.html)
+
+## Trufflehog as a Github Action
+
+See [Trufflehog Github Action](https://github.com/marketplace/actions/trufflehog-oss)
 
 # References
 
@@ -163,13 +180,11 @@ NOTE: That running gitleaks against a repo owned by a user is free. A repository
 * [A Comparative Study of Software Secrets Reporting by Secret Detection Tools](https://arxiv.org/pdf/2103.01946.pdf)
 * [SecretBench](https://github.com/setu1421/SecretBench) - Reference data set used by the comparative paper above.
 * [secrets-magpie](https://github.com/punk-security/secret-magpie) - A similar tool to this one with more source scanning options.
-
-## Github Action References
-* [gitleaks on Github](https://github.com/gitleaks/gitleaks)
-* [gitleaks Github Action](https://github.com/gitleaks/gitleaks-action)
+* [Meet Nosey Parker — An Artificial Intelligence Based Scanner That Sniffs Out Secrets](https://www.praetorian.com/blog/nosey-parker-ai-secrets-scanner-release/) - Some really good data science work here on the precision of Nosey Parker.
 
 # Limitations and Known Issues
 
 * The script does not support multiple Github Personal Access Tokens yet. When pulling GHAS Secert Alerts for multiple orgs, this will only use one token.
 * Internal repositories are treated with a separate flag. If you have a mix of internal, private, and public repositories in an org, you will have incomplete results.
-* Matching does not happen with GHAS Secret Alerts. The API does not return secrets, line or file numbers in the alerts. As such, you cannot compare in an automated fashion to other tools run localhost.
+* Matching does not happen with GHAS Secret Alerts. The API does not return secrets, line or file numbers in the alerts. As such
+* Only clones from Github are supported. Adding filesystem and other repos could be done upon request.
