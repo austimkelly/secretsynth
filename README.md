@@ -2,8 +2,7 @@
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 [![Run Unit Tests](https://github.com/austimkelly/secretsynth/actions/workflows/unit_tests.yml/badge.svg)](https://github.com/austimkelly/secretsynth/actions/workflows/unit_tests.yml)
 
-
-# Secret Synth
+# 🕵️ Secret Synth
 
 <span style='font-family: "Lucida Console";line-height: 14px;font-size: 14px;display: inline-block;'>┏━━━┓━━━━━━━━━━━━━━━━┏┓━┏━━━┓━━━━━━━━━━┏┓━┏┓━━<br>┃┏━┓┃━━━━━━━━━━━━━━━┏┛┗┓┃┏━┓┃━━━━━━━━━┏┛┗┓┃┃━━<br>┃┗━━┓┏━━┓┏━━┓┏━┓┏━━┓┗┓┏┛┃┗━━┓┏┓━┏┓┏━┓━┗┓┏┛┃┗━┓<br>┗━━┓┃┃┏┓┃┃┏━┛┃┏┛┃┏┓┃━┃┃━┗━━┓┃┃┃━┃┃┃┏┓┓━┃┃━┃┏┓┃<br>┃┗━┛┃┃┃━┫┃┗━┓┃┃━┃┃━┫━┃┗┓┃┗━┛┃┃┗━┛┃┃┃┃┃━┃┗┓┃┃┃┃<br>┗━━━┛┗━━┛┗━━┛┗┛━┗━━┛━┗━┛┗━━━┛┗━┓┏┛┗┛┗┛━┗━┛┗┛┗┛<br>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┏━┛┃━━━━━━━━━━━━━<br>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┗━━┛━━━━━━━━━━━━━<br></span>
     
@@ -16,7 +15,7 @@ A python-based tool for discovering secrets with multiple secret scanning soluti
 
 Only pulls from GitHub are currently supported.
 
-## Why Secret Synth?
+## ❓ Why Secret Synth?
 
 In short, to help you: 
 
@@ -26,7 +25,7 @@ In short, to help you:
 * Identify true positives and remediate them before rolling out a secrets alerting solution.
 * Identify false positives and tune your alerting system to eliminate noisy alerts (which decreases developer productivity).
 
-# License
+# 📄 License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details. As such, the software is provided "as-is" and without warranty. The authors are not responsible for any damages or liabilities that may arise from the use of the software.
 
@@ -61,7 +60,7 @@ The following versions were used during development:
 
 3. Install the other required secrets scanners.
 
-## Usage
+## 🛠️ Usage
 
 Here's the command-line help:
 
@@ -101,15 +100,15 @@ See [Managing your personal access tokens](https://docs.github.com/en/authentica
 
 Gitleaks can generate a lot of false positives out of the box. So review results carefully and add exclusions as necessary to minimize false positives.
 
-3. Run the script from the `org-scan` directory:
+3. Run the `secretsynth` script from the `org-scan` directory:
 
-## Sample Scripts
+## Sample Command-Line Executions
 
 Here are some examples of use cases for running the script:
 
 **Example**: Running on a personal owner account:
 
-This example uses some small open source repos with secrets in them. Hence, this is a good test for you to quickly evaluate the setup is correct for your environment.
+🚀🚀 This example uses some small open source repos with secrets in them. Hence, this is a good test for you to quickly evaluate the setup is correct for your environment. 🚀🚀
 
 `python3 secretsynth.py --org-type users --owners swell-consulting --skip-ghas --open-report-in-browser`
 
@@ -117,17 +116,17 @@ This example uses some small open source repos with secrets in them. Hence, this
 
 `python3 secretsynth.py --org-type users --owners austimkelly --keep-secrets-in-reports --skip-trufflehog`
 
-Example: Running on multiple organizations:
+**Example**: Running on multiple organizations:
 
 `python3 secretsynth.py --org-type orgs --owners org1,org2,org3`
 
 Note: Multiple Github Personal Access Tokens are not supported yet.
 
-Example: Cleaning up source and scanning artifacts:
+**Example**: Cleaning up source and scanning artifacts:
 
 `python3 secretsynth.py --clean`
 
-## Reports
+## 📈 Analyzing Results
 
 After the script has finished running, you can find the consolidated reports in the `./org-scan/reports/reports_<YYYYMMDDHHMM>` directory. An HTML file in that directory contains a short summary of the results, CSV artifacts with merged alerts, and an error log for any tool failures you want to investigate.
 
@@ -139,7 +138,7 @@ You can further analyze the data in your favorite spreadsheet or data warehouse:
 
 ![csv report](./doc/secrets_report.png)
 
-## org-scan call sequence
+# 🏗️ Call sequence diagram
 
 ```mermaid
 sequenceDiagram
@@ -167,7 +166,7 @@ sequenceDiagram
   end
 ```
 
-# Github Actions with Secrets Scanners
+# ⚙️ Github Actions with Secrets Scanners
 
 ## Gitleaks as a Github Action
 
@@ -179,7 +178,7 @@ NOTE: That running gitleaks against a repo owned by a user is free. A repository
 
 See [Trufflehog Github Action](https://github.com/marketplace/actions/trufflehog-oss)
 
-# References
+# 📚 References
 
 * [Gitleaks](https://gitleaks.io/)
 * [TruffleHog](https://github.com/trufflesecurity/trufflehog)
@@ -189,7 +188,7 @@ See [Trufflehog Github Action](https://github.com/marketplace/actions/trufflehog
 * [secrets-magpie](https://github.com/punk-security/secret-magpie) - A similar tool to this one with more source scanning options.
 * [Meet Nosey Parker — An Artificial Intelligence Based Scanner That Sniffs Out Secrets](https://www.praetorian.com/blog/nosey-parker-ai-secrets-scanner-release/) - Some really good data science work here on the precision of Nosey Parker.
 
-# Limitations and Known Issues
+# ⚠️ Limitations and Known Issues
 
 * The script does not support multiple Github Personal Access Tokens yet. When pulling GHAS Secert Alerts for multiple orgs, this will only use one token.
 * Internal repositories are treated with a separate flag. If you have a mix of internal, private, and public repositories in an org, you will have incomplete results.
