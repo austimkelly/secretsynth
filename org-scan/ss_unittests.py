@@ -1,30 +1,31 @@
 import unittest
 import subprocess
+import pexpect
 
 #  Run: python3 -m unittest ss_unittests.py
 class TestSecretsynth(unittest.TestCase):
-    def test_dry_run(self):
+    def test_1_dry_run(self):
         # Run the command and capture the output
         result = subprocess.run(['python3', 'secretsynth.py', '--dry-run', '--owners', 'foo,bar', '--org-type', 'orgs'], capture_output=True)
 
         # Check that the command completed successfully
         self.assertEqual(result.returncode, 0)
 
-    def test_invalid_args(self):
+    def test_2_invalid_args(self):
         # Run the command with an invalid argument and capture the output
         result = subprocess.run(['python3', 'secretsynth.py', '--invalid-arg'], capture_output=True)
 
         # Check that the command failed
         self.assertNotEqual(result.returncode, 0)
 
-    def test_skip_all_scanners(self):
+    def test_3_skip_all_scanners(self):
         # Run the command with arguments to skip all scanners and capture the output
         result = subprocess.run(['python3', 'secretsynth.py', '--org-type', 'users', '--owners', 'swell-consulting', '--skip-ghas', '--skip-trufflehog', '--skip-gitleaks', '--skip-noseyparker'], capture_output=True)
 
         # Check that the command completed successfully
         self.assertEqual(result.returncode, 0)
 
-    def test_skip_only_run_gitleaks(self):
+    def test_4_skip_only_run_gitleaks(self):
         # Run the command with arguments to skip some scanners and capture the output
         result = subprocess.run(['python3', 'secretsynth.py', '--org-type', 'users', '--owners', 'swell-consulting', '--skip-ghas', '--skip-trufflehog', '--skip-noseyparker'], capture_output=True, text=True)
 
@@ -32,6 +33,39 @@ class TestSecretsynth(unittest.TestCase):
         #print(result.stdout)
         print(result.stderr)
         self.assertEqual(result.returncode, 0)
+
+    def test_5_skip_only_run_trufflehog(self):
+        # Run the command with arguments to run trufflehog but skip all others
+        result = subprocess.run(['python3', 'secretsynth.py', '--org-type', 'users', '--owners', 'swell-consulting', '--skip-ghas', '--skip-gitleaks', '--skip-noseyparker'], capture_output=True, text=True)
+
+        # Check that the command completed successfully
+        print(result.stderr)
+        self.assertEqual(result.returncode, 0)
+
+    def test_999_clean(self):
+        # Run the command
+        child = pexpect.spawn('python3 secretsynth.py --clean')
+
+        # Expect the end of the prompt for user input
+        child.expect('\(y/n\):')
+
+        # Print the output before the expect call
+        print("Output before expect:", child.before.decode())
+
+        # Send 'y' as input
+        child.sendline('y')
+
+        # Wait for the command to complete
+        child.expect(pexpect.EOF)
+
+        # Print the output after the expect call
+        print("Output after expect:", child.before.decode())
+
+        # Wait for the process to finish executing
+        child.wait()
+
+        # Check that the command completed successfully
+        self.assertEqual(child.exitstatus, 0)
 
 if __name__ == '__main__':
     unittest.main()
