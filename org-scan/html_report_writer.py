@@ -9,7 +9,8 @@ def get_table_style(table_links):
         {'selector': 'th', 'props': [('background', '#606060'), ('color', 'white'), ('font-weight', 'bold')]}
     ])
 
-    # Return the styled DataFrame without rendering it to HTML
+    # Hide the index
+    styled_table_links.hide_index()
     return styled_table_links
 
 def output_to_html(metrics, 
