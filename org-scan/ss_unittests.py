@@ -26,7 +26,7 @@ class TestSecretsynth(unittest.TestCase):
 
     def test_skip_only_run_gitleaks(self):
         # Run the command with arguments to skip some scanners and capture the output
-        result = subprocess.run(['python3', 'secretsynth.py', '--org-type', 'users', '--owners', 'swell-consulting', '--skip-ghas', '--skip-trufflehog', '--skip-noseyparker'], capture_output=True)
+        result = subprocess.run(['python3', 'secretsynth.py', '--org-type', 'users', '--owners', 'swell-consulting', '--skip-ghas', '--skip-trufflehog', '--skip-noseyparker'], capture_output=True, text=True)
 
         # Check that the command completed successfully
         print(result.stdout)
