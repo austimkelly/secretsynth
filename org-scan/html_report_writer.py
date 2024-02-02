@@ -10,7 +10,7 @@ def get_table_style(table_links):
     ])
 
     # Hide the index
-    styled_table_links.hide_index()
+    styled_table_links = styled_table_links.hide_index()
     return styled_table_links
 
 def output_to_html(metrics, 
