@@ -76,17 +76,28 @@ checkout_dir = "./checkout"
 headers = {"Authorization": f"token {TOKEN}"}
 
 def check_commands():
-    commands = ["gitleaks", "git", "trufflehog", "noseyparker"]
-    for command in commands:
-        if shutil.which(command) is None:
-            print(f"ERROR: {command} is not accessible.")
+    commands = {
+        "gitleaks": SKIP_GITLEAKS,
+        "trufflehog": SKIP_TRUFFLEHOG,
+        "noseyparker": SKIP_NOSEYPARKER
+    }
+    # On each iteration, command is set to the key and skip is set to the value of the current tuple pair.
+    for command, skip in commands.items():
+        if not skip and shutil.which(command) is None:
+            sys.stderr.write(f"FATAL ERROR: {command} is not accessible. Use one of the --skip flags to skip the scan. Exiting...\n")
             LOGGER.error(f"ERROR: {command} is not accessible. Please ensure it is installed and available on your system's PATH.")
             sys.exit(1)
 
+    # Check for git separately since it cannot be skipped
+    if shutil.which("git") is None:
+        sys.stderr.write("FATAL ERROR: git is not accessible. Exiting...\n")
+        LOGGER.error("ERROR: git is not accessible. Please ensure it is installed and available on your system's PATH.")
+        sys.exit(1)
+
     # error if TOKEN is not set
     if TOKEN is None:
-        print("ERROR: GITHUB_ACCESS_TOKEN environment variable not set")
-        LOGGER.error("ERROR: GITHUB_ACCESS_TOKEN environment variable not set")
+        sys.stderr.write("FATAL ERROR: GITHUB_ACCESS_TOKEN environment variable not set. Exiting...\n")
+        LOGGER.error("FATAL ERROR: GITHUB_ACCESS_TOKEN environment variable not set. Exiting...")
         exit(1)
 
 
@@ -219,13 +230,14 @@ if args.clean:
     confirm = input("Are you sure you want to delete the directories ./checkouts and ./reports? (y/n): ")
     if confirm.lower() == "y":
         if DRY_RUN:
-            print("dry-run: Deleting directories ./checkouts and ./reports...")
+            print(f"dry-run: Deleting directories {CHECKOUT_DIR}, {GITLEAKS_REPORTS_DIR} and {NOSEY_PARKER_ROOT_ARTIFACT_DIR}...")
         else:
             shutil.rmtree(CHECKOUT_DIR, ignore_errors=True)
             shutil.rmtree(GITLEAKS_REPORTS_DIR, ignore_errors=True)
             shutil.rmtree(NOSEY_PARKER_ROOT_ARTIFACT_DIR, ignore_errors=True)
     else:
-        print("Operation cancelled.")
+        print("Operation cancelled. No clean up was performed. Exiting...")
+
     exit(0)
 
 # make reporting directories if they doesn't exist
@@ -300,7 +312,7 @@ for owner in OWNERS:
 if not os.path.exists(CHECKOUT_DIR) and not DRY_RUN:    # Skip if ./checkout does not exist
     print("ERROR: The ./checkout folder does not exist. Check your git configuration and try again. No reports will be generated.")
     LOGGER.error("ERROR: The ./checkout folder does not exist. Check your git configuration and try again. No reports will be generated.")  
-    exit(1)
+    exit(0)
 
 gitleaks_merged_report_filename = f"{REPORTS_DIR}/gitleaks_report_merged_filename_{timestamp}.csv"
 if not SKIP_GITLEAKS:

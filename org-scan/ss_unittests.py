@@ -29,7 +29,7 @@ class TestSecretsynth(unittest.TestCase):
         result = subprocess.run(['python3', 'secretsynth.py', '--org-type', 'users', '--owners', 'swell-consulting', '--skip-ghas', '--skip-trufflehog', '--skip-noseyparker'], capture_output=True, text=True)
 
         # Check that the command completed successfully
-        print(result.stdout)
+        #print(result.stdout)
         print(result.stderr)
         self.assertEqual(result.returncode, 0)
 
