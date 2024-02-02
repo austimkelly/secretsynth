@@ -27,4 +27,5 @@ jobs:
 
     - name: Run tests
       working-directory: ./org-scan
-      run: python -m unittest ./org-scan/ss_unittests.py
+      run: python -m unittest ss_unittests.py
+      
