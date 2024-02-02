@@ -1,5 +1,12 @@
+![Python version](https://img.shields.io/badge/python-3.9.6-blue.svg)
+![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
+[![Run Unit Tests](https://github.com/austimkelly/secretsynth/actions/workflows/unit_tests.yml/badge.svg)](https://github.com/austimkelly/secretsynth/actions/workflows/unit_tests.yml)
+
+
 # Secret Synth
 
+<span style='font-family: "Lucida Console";line-height: 14px;font-size: 14px;display: inline-block;'>┏━━━┓━━━━━━━━━━━━━━━━┏┓━┏━━━┓━━━━━━━━━━┏┓━┏┓━━<br>┃┏━┓┃━━━━━━━━━━━━━━━┏┛┗┓┃┏━┓┃━━━━━━━━━┏┛┗┓┃┃━━<br>┃┗━━┓┏━━┓┏━━┓┏━┓┏━━┓┗┓┏┛┃┗━━┓┏┓━┏┓┏━┓━┗┓┏┛┃┗━┓<br>┗━━┓┃┃┏┓┃┃┏━┛┃┏┛┃┏┓┃━┃┃━┗━━┓┃┃┃━┃┃┃┏┓┓━┃┃━┃┏┓┃<br>┃┗━┛┃┃┃━┫┃┗━┓┃┃━┃┃━┫━┃┗┓┃┗━┛┃┃┗━┛┃┃┃┃┃━┃┗┓┃┃┃┃<br>┗━━━┛┗━━┛┗━━┛┗┛━┗━━┛━┗━┛┗━━━┛┗━┓┏┛┗┛┗┛━┗━┛┗┛┗┛<br>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┏━┛┃━━━━━━━━━━━━━<br>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┗━━┛━━━━━━━━━━━━━<br></span>
+    
 A python-based tool for discovering secrets with multiple secret scanning solutions across multiple orgs, and repositories. Secret Synth leverages the following secret scanning tools:
 
 * gitleaks
