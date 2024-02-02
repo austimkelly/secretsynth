@@ -16,6 +16,7 @@ def get_table_style(table_links):
 def output_to_html(metrics, 
                    repo_metrics, 
                    detector_metrics,
+                   timing_metrics,
                    merged_report_name, 
                    ghas_secret_alerts_filename, 
                    matches_report_name,
@@ -36,6 +37,26 @@ def output_to_html(metrics,
         'CSV Link': [f'<a href="{file_path}">{file_path}</a>' for file_path in file_paths]
     })
 
+    # Set pandas precision
+    pd.set_option('precision', 2)
+    
+    total_time = sum(value for key, value in timing_metrics.items() if "_time" in key)
+    
+    timing_metrics_data = []
+    for function, value in timing_metrics.items():
+        if "_time" in function:
+            hours, remainder = divmod(value, 3600)
+            minutes, seconds = divmod(remainder, 60)
+            time_str = f"{int(hours)} hours {int(minutes)} minutes {seconds:.2f} seconds"
+            percentage = (value / total_time) * 100 if total_time != 0 else 0
+            timing_metrics_data.append({"Function": function, "Time (seconds)": time_str, "Percentage of Total Time": percentage})
+        elif "_percentage" in function:
+            timing_metrics_data.append({"Function": function, "Time (seconds)": value, "Percentage of Total Time": None})
+    timing_metrics_df = pd.DataFrame(timing_metrics_data)
+
+    # Apply style and convert to HTML
+    timing_metrics_html = get_table_style(timing_metrics_df).render(index=False)
+
     # Convert the DataFrames to HTML
     metrics_html = get_table_style(metrics).render(index=False)
     repo_metrics_html = get_table_style(repo_metrics).render(index=False)
@@ -50,6 +71,7 @@ def output_to_html(metrics,
     repo_level_summary_text = '<p>This section provides detailed metrics for each repository scanned. This just gives you an idea of the quantity of secrets discovered by each tool and the total number of secrets in the entire repository.</p>'
     detector_summary_text = '<p>Every tool emits a detector type. The table below just gives you an aggregated view of the types of secrets that have been found and the magnitude of each. This does not indicate which tool found the secret.</p>'
     report_links_summary_text = '<p>Here you can find the raw data of all the secrets in the merged_scan_results_report. The first few columns represent the generic information found among all tools. Any fields starting with np_, gl_, gh_, or th_ are specifics to those tools.</p>'
+    timing_metrics_summary_text = '<p>Total scan time for each tool and as a percentage of whole.</p>'   
 
     # Write the HTML to a file
     with open(report_path, 'w') as f:
@@ -60,6 +82,9 @@ def output_to_html(metrics,
         f.write('<h1>Top Level Summary</h1>')
         f.write(top_level_summary_text)
         f.write(metrics_html)
+        f.write('<h2>Timing Metrics</h2>')
+        f.write(timing_metrics_summary_text)
+        f.write(timing_metrics_html)
         f.write('<h1>Repo-Level Metrics</h1>')
         f.write(repo_level_summary_text)
         f.write(repo_metrics_html)
