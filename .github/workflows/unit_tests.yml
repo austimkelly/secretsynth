@@ -26,4 +26,5 @@ jobs:
         pip install -r ./org-scan/requirements.txt
 
     - name: Run tests
+      working-directory: ./org-scan
       run: python -m unittest ./org-scan/ss_unittests.py
