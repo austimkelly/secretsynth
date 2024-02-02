@@ -12,6 +12,7 @@ from datetime import datetime
 import csv
 import sys
 import webbrowser
+import time
 
 # import all functions our helper modules
 from csv_coalesce import *
@@ -143,7 +144,10 @@ def count_lines_in_file(file_path):
 # error_file: the path to the error log file
 # repo_names_no_ghas_secrets_enabled: a list of repository names that do not have GHAS secrets scanning enabled
 # Returns: a tuple of two DataFrames: the first is the metrics DataFrame, the second is the repo-level metrics DataFrame
-def analyze_merged_results(merged_results, matches_results, error_file, repo_names_no_ghas_secrets_enabled=None):
+def analyze_merged_results(merged_results, 
+                           matches_results, 
+                           error_file, 
+                           repo_names_no_ghas_secrets_enabled=None):
     
     df = pd.read_csv(merged_results)
 
@@ -208,7 +212,7 @@ def analyze_merged_results(merged_results, matches_results, error_file, repo_nam
     # Remove the index
     detector_metrics.reset_index(drop=True, inplace=True)
     # Write the detector metrics to a temporary CSV file
-    detector_metrics.to_csv('temp_detector_metrics.csv')
+    #detector_metrics.to_csv('temp_detector_metrics.csv')
 
     return metrics, repo_metrics, detector_metrics
 
@@ -269,6 +273,13 @@ if not DRY_RUN:
     if not os.path.exists(NOSEYPARKER_DATASTORE_DIR):
         os.makedirs(NOSEYPARKER_DATASTORE_DIR)
 
+# Initialize counters for time spent on each secrets scanning tool
+timing_metrics = {
+    "total_gitleaks_time": 0,
+    "total_trufflehog_time": 0,
+    "total_noseyparker_time": 0
+}
+
 for owner in OWNERS: 
     # Get list of repositories for the TARGET
     url = f"https://api.github.com/{ORG_TYPE}/{owner}/repos"
@@ -297,16 +308,39 @@ for owner in OWNERS:
             clone_repo(repo, repo_checkout_path)
 
             if not SKIP_GITLEAKS:
+                start_time = time.time()
                 do_gitleaks_scan(owner, repo_bare_name, repo_checkout_path, GITLEAKS_REPORTS_DIR, DRY_RUN, LOGGER)
+                end_time = time.time()
+                timing_metrics["total_gitleaks_time"] += end_time - start_time
 
-            if not SKIP_TRUFFLEHOG:        
+            if not SKIP_TRUFFLEHOG:
+                start_time = time.time()
                 do_trufflehog_scan(owner, repo_bare_name, repo_checkout_path, trufflehog_report_filename, DRY_RUN, LOGGER)
+                end_time = time.time()
+                timing_metrics["total_trufflehog_time"] += end_time - start_time
 
             if not SKIP_NOSEYPARKER:
+                start_time = time.time()
                 do_noseyparker_scan(owner, repo_bare_name, repo_checkout_path, NOSEYPARKER_DATASTORE_DIR, DRY_RUN, LOGGER)
+                end_time = time.time()
+                timing_metrics["total_noseyparker_time"] += end_time - start_time
 
     if not SKIP_NOSEYPARKER and not DRY_RUN:
         run_noseyparker_report(owner, NOSEYPARKER_DATASTORE_DIR, noseyparker_report_filename, LOGGER)
+
+# Calculate total time
+if not DRY_RUN:
+    total_time = sum(timing_metrics.values())
+    for function, time_spent in timing_metrics.items():
+        if total_time != 0:
+            percentage = (time_spent / total_time) * 100
+            print(f"Total {function}: {time_spent:.2f} seconds ({percentage:.2f}%)")
+        else:
+            print(f"Total {function}: {time_spent:.2f} seconds (0.00%)")
+    if total_time != 0:
+        print(f"Total time: {total_time:.2f} seconds")
+    else:
+        print("Total time: 0.00 seconds")
 
 # Concatenate all CSV files into a single CSV file
 if not os.path.exists(CHECKOUT_DIR) and not DRY_RUN:    # Skip if ./checkout does not exist
@@ -357,7 +391,7 @@ if not DRY_RUN:
     # Aggregate report results
     metrics, repo_metrics, detector_metrics = analyze_merged_results(merged_report_name, matches_report_name, ERROR_LOG_FILE, repos_without_ghas_secrets_enabled)
     html_report_path = f"{REPORTS_DIR}/report_{timestamp}.html"
-    output_to_html(metrics, repo_metrics, detector_metrics,
+    output_to_html(metrics, repo_metrics, detector_metrics, timing_metrics, 
                 f"../../{merged_report_name}", 
                 f"../../{ghas_secret_alerts_filename}", 
                 f"../../{matches_report_name}", 
