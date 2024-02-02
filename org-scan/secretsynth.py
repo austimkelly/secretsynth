@@ -4,7 +4,6 @@
 import os
 import requests
 import subprocess
-import glob
 import pandas as pd
 from urllib.parse import urlparse
 import argparse
@@ -77,78 +76,30 @@ checkout_dir = "./checkout"
 headers = {"Authorization": f"token {TOKEN}"}
 
 def check_commands():
-    commands = ["gitleaks", "git", "trufflehog", "noseyparker"]
-    for command in commands:
-        if shutil.which(command) is None:
-            print(f"ERROR: {command} is not accessible.")
+    commands = {
+        "gitleaks": SKIP_GITLEAKS,
+        "trufflehog": SKIP_TRUFFLEHOG,
+        "noseyparker": SKIP_NOSEYPARKER
+    }
+    # On each iteration, command is set to the key and skip is set to the value of the current tuple pair.
+    for command, skip in commands.items():
+        if not skip and shutil.which(command) is None:
+            sys.stderr.write(f"FATAL ERROR: {command} is not accessible. Use one of the --skip flags to skip the scan. Exiting...\n")
             LOGGER.error(f"ERROR: {command} is not accessible. Please ensure it is installed and available on your system's PATH.")
             sys.exit(1)
 
+    # Check for git separately since it cannot be skipped
+    if shutil.which("git") is None:
+        sys.stderr.write("FATAL ERROR: git is not accessible. Exiting...\n")
+        LOGGER.error("ERROR: git is not accessible. Please ensure it is installed and available on your system's PATH.")
+        sys.exit(1)
+
     # error if TOKEN is not set
     if TOKEN is None:
-        print("ERROR: GITHUB_ACCESS_TOKEN environment variable not set")
-        LOGGER.error("ERROR: GITHUB_ACCESS_TOKEN environment variable not set")
+        sys.stderr.write("FATAL ERROR: GITHUB_ACCESS_TOKEN environment variable not set. Exiting...\n")
+        LOGGER.error("FATAL ERROR: GITHUB_ACCESS_TOKEN environment variable not set. Exiting...")
         exit(1)
 
-# Function to concatenate CSV files
-def concatenate_gitleaks_csv_files(gitleaks_report_filename):
-    # Get a list of all CSV files in the {GITLEAKS_REPORTS_DIR} directory
-    csv_files = glob.glob(f'{GITLEAKS_REPORTS_DIR}/*.csv')
-
-    # Create a list to hold DataFrames
-    df_list = []
-
-    # Loop through the list of CSV files
-    for csv_file in csv_files:
-        # Check if the CSV file is empty
-        if os.stat(csv_file).st_size == 0:
-            print(f"Skipping empty file: {csv_file}")
-            continue
-
-        # Extract the base name of the file
-        base_name = os.path.basename(csv_file)
-        # Extract the repository name from the base name. The repo name is the last part of the file name between the last '_' and '.'
-        repo_name = base_name.split('_')[-1].split('.')[0]
-        
-        # get the repo owner name. In the base file name, this is the 3rd token in the file name delimited by '_'
-        repo_owner = base_name.split('_')[2]
-
-        # Read the CSV file into a DataFrame
-        try:
-            df = pd.read_csv(csv_file)
-        except pd.errors.ParserError as e:
-            print(f"Error reading CSV file: {csv_file}")
-            LOGGER.error(f"Error reading CSV file: {csv_file}")
-            print(e)
-            continue
-        # Prepend a new column with the repository name
-        df.insert(0, 'Owner', repo_owner)
-        df.insert(1, 'Repository', repo_name)
-
-        if DRY_RUN:
-            print(f"dry-run: Reading {csv_file}...")
-
-        # Read each non-empty CSV file into a DataFrame and append it to the list
-        try:
-            df_list.append(df)
-        except pd.errors.EmptyDataError:
-            print(f"Error: Empty CSV file: {csv_file}")
-            LOGGER.error(f"Error: Empty CSV file: {csv_file}")
-
-    concatenated_df = pd.DataFrame()
-
-    # Concatenate all the DataFrames in the list
-    if df_list and not DRY_RUN:
-        concatenated_df = pd.concat(df_list, ignore_index=True)
-
-    # Check if concatenated_df is empty
-    if concatenated_df.empty:
-        print(f"WARNING: No results to write to {gitleaks_report_filename}")
-    else:
-        # Write the concatenated DataFrame to a new CSV file
-        print(f"Writing concatenated CSV file to ./{gitleaks_report_filename}...")
-        if not DRY_RUN:
-            concatenated_df.to_csv(f"{gitleaks_report_filename}", index=False)
 
 def fetch_repos(account_type, account, headers, internal_type=False, page=1, per_page=100):
 
@@ -196,6 +147,12 @@ def analyze_merged_results(merged_results, matches_results, error_file, repo_nam
     
     df = pd.read_csv(merged_results)
 
+    # check if merged_results is empty or only has one line (header row). If true, return empty DataFrames
+    if df.empty or len(df) == 1:
+        LOGGER.error(f"ERROR: The merged results file {merged_results} is empty or only has one line (header row). No metrics will be generated.")
+        print(f"ERROR: The merged results file {merged_results} is empty or only has one line (header row). No metrics will be generated.")
+        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+    
     # Calculate the metrics
     cmd_args = sys.argv
     owners = df['owner'].nunique()
@@ -273,13 +230,14 @@ if args.clean:
     confirm = input("Are you sure you want to delete the directories ./checkouts and ./reports? (y/n): ")
     if confirm.lower() == "y":
         if DRY_RUN:
-            print("dry-run: Deleting directories ./checkouts and ./reports...")
+            print(f"dry-run: Deleting directories {CHECKOUT_DIR}, {GITLEAKS_REPORTS_DIR} and {NOSEY_PARKER_ROOT_ARTIFACT_DIR}...")
         else:
             shutil.rmtree(CHECKOUT_DIR, ignore_errors=True)
             shutil.rmtree(GITLEAKS_REPORTS_DIR, ignore_errors=True)
             shutil.rmtree(NOSEY_PARKER_ROOT_ARTIFACT_DIR, ignore_errors=True)
     else:
-        print("Operation cancelled.")
+        print("Operation cancelled. No clean up was performed. Exiting...")
+
     exit(0)
 
 # make reporting directories if they doesn't exist
@@ -354,12 +312,13 @@ for owner in OWNERS:
 if not os.path.exists(CHECKOUT_DIR) and not DRY_RUN:    # Skip if ./checkout does not exist
     print("ERROR: The ./checkout folder does not exist. Check your git configuration and try again. No reports will be generated.")
     LOGGER.error("ERROR: The ./checkout folder does not exist. Check your git configuration and try again. No reports will be generated.")  
-    exit(1)
+    exit(0)
 
 gitleaks_merged_report_filename = f"{REPORTS_DIR}/gitleaks_report_merged_filename_{timestamp}.csv"
 if not SKIP_GITLEAKS:
     print("Concatenating gitleaks report CSV files...")
-    concatenate_gitleaks_csv_files(gitleaks_merged_report_filename)
+    if not DRY_RUN:
+        concatenate_gitleaks_csv_files(gitleaks_merged_report_filename, GITLEAKS_REPORTS_DIR, LOGGER)
 
 ghas_secret_alerts_filename = f"{REPORTS_DIR}/ghas_secret_alerts_{timestamp}.csv"
 if not SKIP_GHAS:
@@ -387,10 +346,13 @@ if not DRY_RUN:
     if not KEEP_SECRETS:
         # Delete gitleaks_merged_report_filename & trufflehog_report_filename
         # because these reports contain secrets in plain text
-        print(f"Deleting {trufflehog_report_filename}, {gitleaks_merged_report_filename}, and {noseyparker_report_filename}...")
-        os.remove(gitleaks_merged_report_filename)
-        os.remove(trufflehog_report_filename)
-        os.remove(noseyparker_report_filename)
+        print(f"Deleting (if exist) {trufflehog_report_filename}, {gitleaks_merged_report_filename}, and {noseyparker_report_filename}...")
+        if os.path.isfile(gitleaks_merged_report_filename):
+            os.remove(gitleaks_merged_report_filename)
+        if os.path.isfile(trufflehog_report_filename):
+            os.remove(trufflehog_report_filename)
+        if os.path.isfile(noseyparker_report_filename):
+            os.remove(noseyparker_report_filename)
 
     # Aggregate report results
     metrics, repo_metrics, detector_metrics = analyze_merged_results(merged_report_name, matches_report_name, ERROR_LOG_FILE, repos_without_ghas_secrets_enabled)
