@@ -24,5 +24,12 @@ class TestSecretsynth(unittest.TestCase):
         # Check that the command completed successfully
         self.assertEqual(result.returncode, 0)
 
+    def test_skip_only_run_gitleaks(self):
+        # Run the command with arguments to skip some scanners and capture the output
+        result = subprocess.run(['python3', 'secretsynth.py', '--org-type', 'users', '--owners', 'swell-consulting', '--skip-ghas', '--skip-trufflehog', '--skip-noseyparker'], capture_output=True)
+
+        # Check that the command completed successfully
+        self.assertEqual(result.returncode, 0)
+
 if __name__ == '__main__':
     unittest.main()

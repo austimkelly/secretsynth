@@ -305,7 +305,8 @@ if not os.path.exists(CHECKOUT_DIR) and not DRY_RUN:    # Skip if ./checkout doe
 gitleaks_merged_report_filename = f"{REPORTS_DIR}/gitleaks_report_merged_filename_{timestamp}.csv"
 if not SKIP_GITLEAKS:
     print("Concatenating gitleaks report CSV files...")
-    concatenate_gitleaks_csv_files(gitleaks_merged_report_filename, GITLEAKS_REPORTS_DIR, LOGGER)
+    if not DRY_RUN:
+        concatenate_gitleaks_csv_files(gitleaks_merged_report_filename, GITLEAKS_REPORTS_DIR, LOGGER)
 
 ghas_secret_alerts_filename = f"{REPORTS_DIR}/ghas_secret_alerts_{timestamp}.csv"
 if not SKIP_GHAS:
