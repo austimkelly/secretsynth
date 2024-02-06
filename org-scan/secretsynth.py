@@ -379,7 +379,7 @@ if not DRY_RUN:
     # Create another report that is a subset of the merged report, 
     # with only fuzzy matches found among the secrets results
     matches_report_name = f"{REPORTS_DIR}/scanning_tool_matches_only_{timestamp}.csv" 
-    find_matches(merged_report_name, matches_report_name)
+    find_matches(merged_report_name, matches_report_name, 90)
 
     if not KEEP_SECRETS:
         # Delete gitleaks_merged_report_filename & trufflehog_report_filename
