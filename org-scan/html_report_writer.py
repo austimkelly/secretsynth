@@ -71,7 +71,7 @@ def output_to_html(metrics,
     repo_level_summary_text = '<p>This section provides detailed metrics for each repository scanned. This just gives you an idea of the quantity of secrets discovered by each tool and the total number of secrets in the entire repository.</p>'
     detector_summary_text = '<p>Every tool emits a detector type. The table below just gives you an aggregated view of the types of secrets that have been found and the magnitude of each. This does not indicate which tool found the secret.</p>'
     report_links_summary_text = '<p>Here you can find the raw data of all the secrets in the merged_scan_results_report. The first few columns represent the generic information found among all tools. Any fields starting with np_, gl_, gh_, or th_ are specifics to those tools.</p>'
-    timing_metrics_summary_text = '<p>Total scan time for each tool and as a percentage of whole.</p>'   
+    timing_metrics_summary_text = '<p>Total scan time for each tool and as a percentage of whole. GHAS Secrets is never included here since local scanning is not supported.</p>'   
 
     # Write the HTML to a file
     with open(report_path, 'w') as f:
