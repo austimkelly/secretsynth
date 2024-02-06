@@ -8,6 +8,7 @@ class TestSecretsynth(unittest.TestCase):
         # Run the command and capture the output
         result = subprocess.run(['python3', 'secretsynth.py', '--dry-run', '--owners', 'foo,bar', '--org-type', 'orgs'], capture_output=True)
 
+        print(result.stderr)
         # Check that the command completed successfully
         self.assertEqual(result.returncode, 0)
 
@@ -15,6 +16,7 @@ class TestSecretsynth(unittest.TestCase):
         # Run the command with an invalid argument and capture the output
         result = subprocess.run(['python3', 'secretsynth.py', '--invalid-arg'], capture_output=True)
 
+        print(result.stderr)
         # Check that the command failed
         self.assertNotEqual(result.returncode, 0)
 
@@ -22,6 +24,7 @@ class TestSecretsynth(unittest.TestCase):
         # Run the command with arguments to skip all scanners and capture the output
         result = subprocess.run(['python3', 'secretsynth.py', '--org-type', 'users', '--owners', 'swell-consulting', '--skip-ghas', '--skip-trufflehog', '--skip-gitleaks', '--skip-noseyparker'], capture_output=True)
 
+        print(result.stderr)
         # Check that the command completed successfully
         self.assertEqual(result.returncode, 0)
 

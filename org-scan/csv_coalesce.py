@@ -128,15 +128,34 @@ def merge_csv_all_tools(keep_secrets,
                     row['repo_name'] = row.pop('repo', '')
                     row['file'] = row.pop('html_url', '')
                     row['line'] = row.pop('unavailable - see alert in Github', '')
-                    row['secret'] = row.pop('unavailable - see alert in Github', '')
+                    if not keep_secrets:
+                        row['secret'] = hash_secret(row.pop('secret', ''))
+                    else:
+                        row['secret'] = row.pop('secret', '')
                     row['match'] = row.pop('unavailable - see alert in Github', '')
-                    row['detector'] = row.pop('rule', '')
+                    row['detector'] = row.pop('secret_type_display_name', '')
+                    
                     # only in ghas
                     row['ghas_number'] = row.pop('number', '')
                     row['ghas_rule'] = row.pop('rule', '')
                     row['ghas_state'] = row.pop('state', '')
                     row['ghas_created_at'] = row.pop('created_at', '')
+                    row['ghas_updated_at'] = row.pop('updated_at', '')
+                    row['ghas_url'] = row.pop('url', '')
                     row['ghas_html_url'] = row.pop('html_url', '')
+                    row['ghas_locations_url'] = row.pop('locations_url', '')
+                    row['ghas_secret_type'] = row.pop('secret_type', '')
+                    row['ghas_secret_type_display_name'] = row.pop('secret_type_display_name', '')
+                    row['ghas_validity'] = row.pop('validity', '')
+                    row['ghas_resolution'] = row.pop('resolution', '')
+                    row['ghas_resolved_by'] = row.pop('resolved_by', '')
+                    row['ghas_resolved_at'] = row.pop('resolved_at', '')
+                    row['ghas_resolution_comment'] = row.pop('resolution_comment', '')
+                    row['ghas_push_protection_bypassed'] = row.pop('push_protection_bypassed', '')
+                    row['ghas_push_protection_bypassed_by'] = row.pop('push_protection_bypassed_by', '')
+                    row['ghas_push_protection_bypassed_at'] = row.pop('push_protection_bypassed_at', '')
+
+                    
 
                     writer.writerow(row)
         

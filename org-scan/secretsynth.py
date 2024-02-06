@@ -74,7 +74,11 @@ NOSEYPARKER_DATASTORE_DIR = f"{NOSEY_PARKER_ROOT_ARTIFACT_DIR}/np_datastore_{tim
 REPORTS_DIR = f"./reports/reports_{timestamp}"  # This is where aggregated results are saved
 ERROR_LOG_FILE = f"./reports/reports_{timestamp}/error_log_{timestamp}.log"  # This is where error messages are saved
 checkout_dir = "./checkout"
-headers = {"Authorization": f"token {TOKEN}"}
+github_rest_headers = {
+    "Authorization": f"token {TOKEN}",
+    "X-GitHub-Api-Version": "2022-11-28",
+    "Accept": "application/vnd.github+json"
+}
 
 def check_commands():
     commands = {
@@ -102,7 +106,7 @@ def check_commands():
         exit(1)
 
 
-def fetch_repos(account_type, account, headers, internal_type=False, page=1, per_page=100):
+def fetch_repos(account_type, account, github_rest_headers, internal_type=False, page=1, per_page=100):
 
     repos = []
     while True:
@@ -114,7 +118,7 @@ def fetch_repos(account_type, account, headers, internal_type=False, page=1, per
             print(f"dry-run: Calling {repos_url}...")
             break;
 
-        response = requests.get(repos_url, headers=headers)
+        response = requests.get(repos_url, headers=github_rest_headers)
         data = response.json()
         
         if isinstance(data, dict) and "message" in data:
@@ -173,7 +177,7 @@ def analyze_merged_results(merged_results,
 
     # Create a DataFrame with the metrics
     metrics = pd.DataFrame({
-        'Metric': ['Time of Report', 'Arguments', 'Owners', 'Scanning Source Tools', 'Total Repos on Disk', 'Total Repos with Secrets', 'Total Secrets by Source', 'Total Secrets (all tools)', 'Repos without GHAS Secrets Scanning Enabled', 'Total Distinct Secrets', 'Secret Matches Count (Experimental)', 'Total Errors in Log'],
+        'Metric': ['Time of Report', 'Arguments', 'Owners', 'Scanning Source Tools', 'Total Repos on Disk', 'Total Repos with Secrets', 'Total Secrets by Source', 'Total Secrets (all tools)', 'Repos with GHAS Secrets Scanning Disabled', 'Total Distinct Secrets', 'Secret Matches Count (Experimental)', 'Total Errors in Log'],
         'Value': [now, cmd_args, owners, distinct_sources, total_repos_on_disk, total_repos_with_secrets, total_secrets_by_source, total_secrets, repos_without_ghas_secrets_scanning, total_distinct_secrets, matches_line_count, err_line_count]
     })
 
@@ -285,7 +289,7 @@ for owner in OWNERS:
     url = f"https://api.github.com/{ORG_TYPE}/{owner}/repos"
     print(f"Getting list of repositories from {url}...")
     
-    repos = fetch_repos(ORG_TYPE, owner, headers, INTERNAL_REPOS_FLAG,)
+    repos = fetch_repos(ORG_TYPE, owner, github_rest_headers, INTERNAL_REPOS_FLAG,)
     
     # Check if the response is a dictionary containing an error message
     if isinstance(repos, dict) and "message" in repos:
@@ -356,7 +360,7 @@ if not SKIP_GITLEAKS:
 
 ghas_secret_alerts_filename = f"{REPORTS_DIR}/ghas_secret_alerts_{timestamp}.csv"
 if not SKIP_GHAS:
-    repos_without_ghas_secrets_enabled = fetch_ghas_secret_scanning_alerts(ORG_TYPE, OWNERS, headers, ghas_secret_alerts_filename, DRY_RUN, LOGGER)
+    repos_without_ghas_secrets_enabled = fetch_ghas_secret_scanning_alerts(ORG_TYPE, OWNERS, github_rest_headers, ghas_secret_alerts_filename, DRY_RUN, LOGGER)
 else:
     repos_without_ghas_secrets_enabled = None
         
@@ -387,6 +391,8 @@ if not DRY_RUN:
             os.remove(trufflehog_report_filename)
         if os.path.isfile(noseyparker_report_filename):
             os.remove(noseyparker_report_filename)
+        if os.path.isfile(ghas_secret_alerts_filename):
+            os.remove(ghas_secret_alerts_filename)
 
     # Aggregate report results
     metrics, repo_metrics, detector_metrics = analyze_merged_results(merged_report_name, matches_report_name, ERROR_LOG_FILE, repos_without_ghas_secrets_enabled)
