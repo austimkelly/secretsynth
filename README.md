@@ -194,3 +194,4 @@ See [Trufflehog Github Action](https://github.com/marketplace/actions/trufflehog
 * Internal repositories are treated with a separate flag. If you have a mix of internal, private, and public repositories in an org, you will have incomplete results.
 * Matching does not happen with GHAS Secret Alerts. The API does not return secrets, line or file numbers in the alerts. As such
 * Only clones from Github are supported. Adding filesystem and other repos could be done upon request.
+* Git fetch depth or custom scan depths on tools is not supported.

@@ -210,7 +210,7 @@ def analyze_merged_results(merged_results,
 
     # analyze the detector in a new table
     # Group by 'detector' and count the number of rows for each detector
-    detector_metrics = df.groupby('detector').size().reset_index(name='detector_count')
+    detector_metrics = df.groupby(['source', 'detector']).size().reset_index(name='detector_count')
     # Order by 'detector_count' in descending order
     detector_metrics = detector_metrics.sort_values('detector_count', ascending=False)
     # Remove the index
