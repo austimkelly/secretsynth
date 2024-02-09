@@ -15,14 +15,17 @@ import webbrowser
 import time
 
 # import all functions our helper modules
-from csv_coalesce import *
-from ghas_secret_alerts_fetch import *
-from logger import *
-from trufflehog_scan import *
-from noseyparker_scan import *
-from gitleaks_scan import *
-from html_report_writer import *
-from secret_matcher import *
+# scanners
+from scanners.trufflehog_scan import *
+from scanners.noseyparker_scan import *
+from scanners.gitleaks_scan import *
+from scanners.ghas_secret_alerts_fetch import *
+# utils
+from utils.logger import *
+# reporting
+from reporting.csv_coalesce import *
+from reporting.html_report_writer import *
+from reporting.secret_matcher import *
 
 # Add command line arguments
 parser = argparse.ArgumentParser()
@@ -67,13 +70,15 @@ OWNERS = args.owners.split(",") if args.owners else None  # Split the value of -
 OPEN_REPORT_IN_BROWSER = args.open_report_in_browser
 
 TOKEN = os.getenv('GITHUB_ACCESS_TOKEN')
-CHECKOUT_DIR = "./checkout"  # This is the directory where the repositories will be cloned
-GITLEAKS_REPORTS_DIR = "./gitleaks_reports"  # This is the directory where the gitleaks reports (per repo) will be saved
-NOSEY_PARKER_ROOT_ARTIFACT_DIR = "./np_datastore"
+
+# artifact directories
+CHECKOUT_DIR = "./_checkout"  # This is the directory where the repositories will be cloned
+GITLEAKS_REPORTS_DIR = "./_gitleaks_reports"  # This is the directory where the gitleaks reports (per repo) will be saved
+NOSEY_PARKER_ROOT_ARTIFACT_DIR = "./_np_datastore"
 NOSEYPARKER_DATASTORE_DIR = f"{NOSEY_PARKER_ROOT_ARTIFACT_DIR}/np_datastore_{timestamp}"
-REPORTS_DIR = f"./reports/reports_{timestamp}"  # This is where aggregated results are saved
-ERROR_LOG_FILE = f"./reports/reports_{timestamp}/error_log_{timestamp}.log"  # This is where error messages are saved
-checkout_dir = "./checkout"
+REPORTS_DIR = f"./_reports/reports_{timestamp}"  # This is where aggregated results are saved
+ERROR_LOG_FILE = f"./_reports/reports_{timestamp}/error_log_{timestamp}.log"  # This is where error messages are saved
+
 github_rest_headers = {
     "Authorization": f"token {TOKEN}",
     "X-GitHub-Api-Version": "2022-11-28",
@@ -210,7 +215,7 @@ def analyze_merged_results(merged_results,
 
     # analyze the detector in a new table
     # Group by 'detector' and count the number of rows for each detector
-    detector_metrics = df.groupby('detector').size().reset_index(name='detector_count')
+    detector_metrics = df.groupby(['source', 'detector']).size().reset_index(name='detector_count')
     # Order by 'detector_count' in descending order
     detector_metrics = detector_metrics.sort_values('detector_count', ascending=False)
     # Remove the index
@@ -379,7 +384,7 @@ if not DRY_RUN:
     # Create another report that is a subset of the merged report, 
     # with only fuzzy matches found among the secrets results
     matches_report_name = f"{REPORTS_DIR}/scanning_tool_matches_only_{timestamp}.csv" 
-    find_matches(merged_report_name, matches_report_name)
+    find_matches(merged_report_name, matches_report_name, 90)
 
     if not KEEP_SECRETS:
         # Delete gitleaks_merged_report_filename & trufflehog_report_filename
