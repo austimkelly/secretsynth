@@ -4,6 +4,7 @@ import pexpect
 
 SECRETSYNTH="../secretsynth.py"
 
+# Working directory should be the location of this script
 #  Run: python3 -m unittest ss_unittests.py
 class TestSecretsynth(unittest.TestCase):
     def test_1_dry_run(self):
