@@ -33,7 +33,7 @@ jobs:
         brew install trufflehog
 
     - name: Run tests
-      working-directory: ./org-scan
+      working-directory: ./org-scan/unittest
       env:
         # https://docs.github.com/en/actions/security-guides/automatic-token-authentication
         GITHUB_ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}

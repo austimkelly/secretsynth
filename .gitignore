@@ -3,6 +3,9 @@
 reports/
 checkout/
 np_datastore/
+_reports/
+_checkout/
+_np_datastore/
 *.csv
 
 # Byte-compiled / optimized / DLL files
